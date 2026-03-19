@@ -1,104 +1,98 @@
+# VBx — Speaker Diarization with VB-HMM over x-vectors
 
-# VBHMM x-vectors Diarization (aka VBx)
+Speaker diarization pipeline based on x-vector extraction followed by Agglomerative Hierarchical Clustering (AHC) and Variational Bayes HMM (VB-HMM) clustering.
 
-Diarization recipe for CALLHOME, AMI and DIHARD II by Brno University of Technology. \
-The recipe consists of 
-- computing x-vectors
-- doing agglomerative hierarchical clustering on x-vectors as a first step to produce an initialization
-- apply variational Bayes HMM over x-vectors to produce the diarization output
-- score the diarization output
+Based on: F. Landini, J. Profant, M. Diez, L. Burget — *Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization* (Computer Speech & Language, 2022).
 
-More details about the full recipe in\
-F. Landini, J. Profant, M. Diez, L. Burget: [Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization: theory, implementation and analysis on standard tasks](https://www.sciencedirect.com/science/article/pii/S0885230821000619)
+## Installation
 
-If you are interested in the original version of VBx (prepared for the Second DIHARD Challenge), please refer to the [corresponding branch](https://github.com/BUTSpeechFIT/VBx/tree/v1.0_DIHARDII).\
-If you are interested in the VBx recipe prepared for the track 4 of VoxSRC-20 Challenge (on VoxConverse), please refer to the [corresponding branch](https://github.com/BUTSpeechFIT/VBx/tree/v1.1_VoxConverse2020).
-
-
-
-## Usage
-To run the recipe, execute the run scripts for the different datasets with the corresponding parameters. Please refer to the scripts for more details. The CALLHOME and DIHARD II recipes require the corresponding datasets and the paths need to be provided. For AMI, the recordings need to be downloaded (for free) but the VAD segments and reference rttms are obtained from [our proposed setup](https://github.com/BUTSpeechFIT/AMI-diarization-setup).
-
-This repository has x-vector extractors already trained to function as a standalone recipe. However, the recipes for training the extractors can be found [here](https://github.com/phonexiaresearch/VBx-training-recipe).
-
-The recipe as presented runs AHC as initialization for VBx. However, running AHC on long files (more than 30 minutes) can become very slow. We have added another type of initialization: [random_<number>](https://github.com/BUTSpeechFIT/VBx/blob/f8c7a9a328ef3ccf3974f4a03d432b9d9e94d30b/VBx/vbhmm.py#L147) which means assigning random speaker labels as initialization and run VBx. This method runs substantially faster on long recordings but can have a slightly worse performance than initializing with AHC. 
-
-
-
-## Getting started
-We recommend to create [anaconda](https://www.anaconda.com/) environment
-```bash
-conda create -n VBx python=3.9
-conda activate VBx
-```
-Clone the repository
-```bash
-git clone https://github.com/BUTSpeechFIT/VBx.git
-```
-Install the package
 ```bash
 pip install -e .
 ```
-Initialize submodule `dscore`:
+
+Or with [uv](https://docs.astral.sh/uv/):
 ```bash
-git submodule init
-git submodule update
+uv sync
 ```
-Run the example
+
+## Quick start
+
+Run diarization on the included example audio:
+
 ```bash
-./run_example.sh
-```
-The output (last few lines) should look like this
-```
-File               DER    JER    B3-Precision    B3-Recall    B3-F1    GKT(ref, sys)    GKT(sys, ref)    H(ref|sys)    H(sys|ref)    MI    NMI
----------------  -----  -----  --------------  -----------  -------  ---------------  ---------------  ------------  ------------  ----  -----
-ES2005a           7.06  29.99            0.65         0.78     0.71             0.71             0.56          1.14          0.59  1.72   0.67
-*** OVERALL ***   7.06  29.99            0.65         0.78     0.71             0.71             0.56          1.14          0.59  1.72   0.67
+python run_example.py --wav-dir example/audios/16k --lab-dir example/vad
 ```
 
+This will:
+1. Extract x-vectors from the audio using the bundled ResNet101 ONNX model
+2. Run AHC + VB-HMM clustering to produce speaker labels
+3. Write results to a temp directory (printed in the log output)
 
-## Citations
-In case of using the software please cite:\
-F. Landini, J. Profant, M. Diez, L. Burget: [Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization: theory, implementation and analysis on standard tasks](https://www.sciencedirect.com/science/article/pii/S0885230821000619) [(arXiv version)](https://arxiv.org/abs/2012.14952)
-```
-@article{landini2022bayesian,
-  title={Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization: theory, implementation and analysis on standard tasks},
-  author={Landini, Federico and Profant, J{\'a}n and Diez, Mireia and Burget, Luk{\'a}{\v{s}}},
-  journal={Computer Speech \& Language},
-  volume={71},
-  pages={101254},
-  year={2022},
-  publisher={Elsevier}
-}
+To specify an output directory:
+
+```bash
+python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/
 ```
 
+## Output
 
-## Results
-We present here the results of our systems for the different datasets and different evaluation protocols. A more thorough discussion on the protocols and results can be found in the paper. All results are obtained using oracle VAD.
+The output directory will contain, for each input wav file:
 
+| File | Description |
+|------|-------------|
+| `<name>.ark` | Kaldi archive with extracted x-vectors (binary) |
+| `<name>.seg` | Segment timing info for each x-vector |
+| `<name>.rttm` | Diarization result in RTTM format |
+
+The RTTM file contains one line per speech segment:
 ```
-CALLHOME                         DIHARD II
------------------                -------------------------
-Protocol    DER                  Protocol        DER
-Forgiving   4.42	                      dev    eval
-Fair        14.21                Full        18.19   18.55
-Full        21.77                Fair        12.23   12.29
-
-AMI beamformed                   AMI Mix-Headset
--------------------------        -------------------------
-Protocol         DER             Protocol         DER 
-             dev     eval                     dev     eval
-Forgiving    2.80    3.90        Forgiving    1.56    2.10
-Fair        10.81   14.23        Fair         9.68   12.53
-Full        17.66   20.84        Full        16.33   18.99
+SPEAKER ES2005a 1 0.000000 7.560000 <NA> <NA> 23 <NA> <NA>
+SPEAKER ES2005a 1 7.560000 6.000000 <NA> <NA> 27 <NA> <NA>
+...
 ```
 
+Fields: `SPEAKER <file> 1 <start_sec> <duration_sec> <NA> <NA> <speaker_id> <NA> <NA>`
+
+## All options
+
+```
+python run_example.py \
+    --wav-dir DIR          # directory with input .wav files (required)
+    --lab-dir DIR          # directory with VAD .lab files (required)
+    --out-dir DIR          # output directory (default: temp dir)
+    --weights PATH         # model weights (default: bundled ONNX)
+    --backend {onnx,pytorch}
+    --xvec-transform PATH  # x-vector transform h5 file
+    --plda-file PATH       # PLDA model file
+    --init {AHC,AHC+VB}   # clustering method (default: AHC+VB)
+    --threshold FLOAT      # AHC threshold (default: -0.015)
+    --lda-dim INT          # LDA dimensionality (default: 128)
+    --Fa FLOAT             # VB-HMM Fa param (default: 0.3)
+    --Fb FLOAT             # VB-HMM Fb param (default: 17)
+    --loopP FLOAT          # VB-HMM loop probability (default: 0.99)
+```
+
+## Programmatic usage
+
+```python
+from VBx.predict import load_model, extract_xvectors
+from VBx.vbhmm import run_vbhmm
+
+# or use the high-level wrapper:
+from run_example import run_diarization
+
+out_dir = run_diarization(
+    wav_dir="path/to/wavs",
+    lab_dir="path/to/vad_labels",
+    out_dir="path/to/output",
+)
+```
+
+## Input requirements
+
+- **Audio**: `.wav` files, mono, 8kHz or 16kHz sample rate
+- **VAD labels**: `.lab` files (one per wav, same base name) with two columns: `start_time end_time` in seconds
 
 ## License
 
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-
-
-
-## Contact
-If you have any comment or question, please contact landini@fit.vutbr.cz or mireia@fit.vutbr.cz
+Apache License 2.0 — see the original repository for details.

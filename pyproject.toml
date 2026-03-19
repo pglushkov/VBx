@@ -1,0 +1,28 @@
+[project]
+name = "VBx"
+version = "1.2.0"
+description = "VBx: Bayesian HMM clustering of x-vector sequences for speaker diarization"
+readme = "README.md"
+license = { text = "Apache License, Version 2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "F. Landini, J. Profant, M. Diez, L. Burget"}]
+dependencies = [
+    'numpy',
+    'scipy',
+    'scikit-learn',
+    'numexpr',
+    'fastcluster',
+    'h5py',
+    'onnxruntime',
+    'soundfile',
+    'kaldi_io',
+    'torch',
+    'tabulate',
+    'intervaltree'
+]
+
+[project.urls]
+Homepage = "https://github.com/fnlandini/VBx_dev"
+
+[project.scripts]
+vbx-diarize = "run_example:main"

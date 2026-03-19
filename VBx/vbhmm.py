@@ -50,6 +50,17 @@ def write_output(fp, out_labels, starts, ends):
         fp.write(f'SPEAKER {file_name} 1 {seg_start:03f} {seg_end - seg_start:03f} '
                  f'<NA> <NA> {label + 1} <NA> <NA>{os.linesep}')
 
+          # --init AHC+VB \
+          # --out-rttm-dir exp \
+          # --xvec-ark-file exp/${filename}.ark \
+          # --segments-file exp/${filename}.seg \
+          # --xvec-transform VBx/models/ResNet101_16kHz/transform.h5 \
+          # --plda-file VBx/models/ResNet101_16kHz/plda \
+          # --threshold -0.015 \
+          # --lda-dim 128 \
+          # --Fa 0.3 \
+          # --Fb 17 \
+          # --loopP 0.99
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
