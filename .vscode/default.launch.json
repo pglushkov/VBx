@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Pytest",
+      "type": "debugpy",
+      "request": "launch",
+      "purpose": ["debug-test"],
+      "program": "-m pytest",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+      },
+    },
+    {
+      "name": "Run example",
+      "type": "debugpy",
+      "request": "launch",
+      "justMyCode": false,
+      "program": "run_example.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--wav-dir",
+        "example/audios/16k",
+        "--lab-dir",
+        "example/vad",
+        "--out-dir",
+        "results",
+      ],
+    },
+  ],
+}

@@ -868,7 +868,7 @@ wheels = [
 [[package]]
 name = "vbx"
 version = "1.2.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "fastcluster" },
     { name = "h5py" },

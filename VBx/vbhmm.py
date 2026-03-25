@@ -34,26 +34,45 @@ import h5py
 import kaldi_io
 import numpy as np
 from scipy.cluster.hierarchy import fcluster
+from scipy.linalg import eigh
 from scipy.spatial.distance import squareform
 from scipy.special import softmax
-from scipy.linalg import eigh
 
-from .diarization_lib import read_xvector_timing_dict, l2_norm, \
-    cos_similarity, twoGMMcalib_lin, merge_adjacent_labels
+from .diarization_lib import (
+    cos_similarity,
+    l2_norm,
+    merge_adjacent_labels,
+    read_xvector_timing_dict,
+    twoGMMcalib_lin,
+)
 from .kaldi_utils import read_plda
 from .VBx import VBx
 
 
 def write_output(fp, file_name, out_labels, starts, ends):
     for label, seg_start, seg_end in zip(out_labels, starts, ends):
-        fp.write(f'SPEAKER {file_name} 1 {seg_start:03f} {seg_end - seg_start:03f} '
-                 f'<NA> <NA> {label + 1} <NA> <NA>{os.linesep}')
+        fp.write(
+            f"SPEAKER {file_name} 1 {seg_start:03f} {seg_end - seg_start:03f} "
+            f"<NA> <NA> {label + 1} <NA> <NA>{os.linesep}"
+        )
 
 
-def run_vbhmm(xvec_ark_file, segments_file, xvec_transform, plda_file,
-              out_rttm_dir, init='AHC+VB', threshold=-0.015, lda_dim=128,
-              Fa=0.3, Fb=17, loopP=0.99, target_energy=1.0,
-              init_smoothing=5.0, output_2nd=False):
+def run_vbhmm(
+    xvec_ark_file,
+    segments_file,
+    xvec_transform,
+    plda_file,
+    out_rttm_dir,
+    init="AHC+VB",
+    threshold=-0.015,
+    lda_dim=128,
+    Fa=0.3,
+    Fb=17,
+    loopP=0.99,
+    target_energy=1.0,
+    init_smoothing=5.0,
+    output_2nd=False,
+):
     """Run VB-HMM speaker diarization on x-vectors.
 
     Args:
@@ -72,7 +91,7 @@ def run_vbhmm(xvec_ark_file, segments_file, xvec_transform, plda_file,
         init_smoothing: smoothing for AHC-to-VB initialization
         output_2nd: whether to output second-best speaker assignments
     """
-    assert 0 <= loopP <= 1, f'Expecting loopP between 0 and 1, got {loopP} instead.'
+    assert 0 <= loopP <= 1, f"Expecting loopP between 0 and 1, got {loopP} instead."
 
     segs_dict = read_xvector_timing_dict(segments_file)
 
@@ -85,94 +104,128 @@ def run_vbhmm(xvec_ark_file, segments_file, xvec_transform, plda_file,
     plda_tr = wccn.T[::-1]
 
     arkit = kaldi_io.read_vec_flt_ark(xvec_ark_file)
-    recit = itertools.groupby(arkit, lambda e: e[0].rsplit('_', 1)[0])
+    recit = itertools.groupby(arkit, lambda e: e[0].rsplit("_", 1)[0])
     for file_name, segs in recit:
         print(file_name)
         seg_names, xvecs = zip(*segs)
         x = np.array(xvecs)
 
-        with h5py.File(xvec_transform, 'r') as f:
-            mean1 = np.array(f['mean1'])
-            mean2 = np.array(f['mean2'])
-            lda = np.array(f['lda'])
+        with h5py.File(xvec_transform, "r") as f:
+            mean1 = np.array(f["mean1"])
+            mean2 = np.array(f["mean2"])
+            lda = np.array(f["lda"])
             x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
 
-        if init == 'AHC' or init.endswith('VB'):
-            if init.startswith('AHC'):
-                scr_mx = cos_similarity(x)
+        if init == "AHC" or init.endswith("VB"):
+            if init.startswith("AHC"):
+                scr_mx = cos_similarity(x)  # result is matrix
                 thr, _ = twoGMMcalib_lin(scr_mx.ravel())
                 scr_mx = squareform(-scr_mx, checks=False)
                 lin_mat = fastcluster.linkage(
-                    scr_mx, method='average', preserve_input='False')
+                    scr_mx, method="average", preserve_input="False"
+                )
                 del scr_mx
                 adjust = abs(lin_mat[:, 2].min())
                 lin_mat[:, 2] += adjust
-                labels1st = fcluster(lin_mat, -(thr + threshold) + adjust,
-                    criterion='distance') - 1
-            if init.endswith('VB'):
+                labels1st = (
+                    fcluster(lin_mat, -(thr + threshold) + adjust, criterion="distance")
+                    - 1
+                )
+            if init.endswith("VB"):
                 qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
                 qinit[range(len(labels1st)), labels1st] = 1.0
                 qinit = softmax(qinit * init_smoothing, axis=1)
                 fea = (x - plda_mu).dot(plda_tr.T)[:, :lda_dim]
                 q, sp, L = VBx(
-                    fea, plda_psi[:lda_dim],
-                    pi=qinit.shape[1], gamma=qinit,
-                    maxIters=40, epsilon=1e-6,
-                    loopProb=loopP, Fa=Fa, Fb=Fb)
+                    fea,
+                    plda_psi[:lda_dim],
+                    pi=qinit.shape[1],
+                    gamma=qinit,
+                    maxIters=40,
+                    epsilon=1e-6,
+                    loopProb=loopP,
+                    Fa=Fa,
+                    Fb=Fb,
+                )
 
                 labels1st = np.argsort(-q, axis=1)[:, 0]
                 if q.shape[1] > 1:
                     labels2nd = np.argsort(-q, axis=1)[:, 1]
         else:
-            raise ValueError('Wrong option for init.')
+            raise ValueError("Wrong option for init.")
 
-        assert(np.all(segs_dict[file_name][0] == np.array(seg_names)))
+        assert np.all(segs_dict[file_name][0] == np.array(seg_names))
         start, end = segs_dict[file_name][1].T
 
         starts, ends, out_labels = merge_adjacent_labels(start, end, labels1st)
         os.makedirs(out_rttm_dir, exist_ok=True)
-        with open(os.path.join(out_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
+        with open(os.path.join(out_rttm_dir, f"{file_name}.rttm"), "w") as fp:
             write_output(fp, file_name, out_labels, starts, ends)
 
-        if output_2nd and init.endswith('VB') and q.shape[1] > 1:
+        if output_2nd and init.endswith("VB") and q.shape[1] > 1:
             starts, ends, out_labels2 = merge_adjacent_labels(start, end, labels2nd)
-            output_rttm_dir = f'{out_rttm_dir}2nd'
+            output_rttm_dir = f"{out_rttm_dir}2nd"
             os.makedirs(output_rttm_dir, exist_ok=True)
-            with open(os.path.join(output_rttm_dir, f'{file_name}.rttm'), 'w') as fp:
+            with open(os.path.join(output_rttm_dir, f"{file_name}.rttm"), "w") as fp:
                 write_output(fp, file_name, out_labels2, starts, ends)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--init', required=True, type=str,
-                        choices=['AHC', 'AHC+VB'],
-                        help='AHC for using only AHC or AHC+VB for VB-HMM '
-                        'after AHC initilization')
-    parser.add_argument('--out-rttm-dir', required=True, type=str,
-                        help='Directory to store output rttm files')
-    parser.add_argument('--xvec-ark-file', required=True, type=str,
-                        help='Kaldi ark file with x-vectors')
-    parser.add_argument('--segments-file', required=True, type=str,
-                        help='File with x-vector timing info')
-    parser.add_argument('--xvec-transform', required=True, type=str,
-                        help='path to x-vector transformation h5 file')
-    parser.add_argument('--plda-file', required=True, type=str,
-                        help='File with PLDA model in Kaldi format')
-    parser.add_argument('--threshold', required=True, type=float,
-                        help='threshold (bias) used for AHC')
-    parser.add_argument('--lda-dim', required=True, type=int,
-                        help='LDA dimensionality for VB-HMM')
-    parser.add_argument('--Fa', required=True, type=float,
-                        help='Parameter of VB-HMM (see VBx.VBx)')
-    parser.add_argument('--Fb', required=True, type=float,
-                        help='Parameter of VB-HMM (see VBx.VBx)')
-    parser.add_argument('--loopP', required=True, type=float,
-                        help='Parameter of VB-HMM (see VBx.VBx)')
-    parser.add_argument('--target-energy', required=False, type=float, default=1.0)
-    parser.add_argument('--init-smoothing', required=False, type=float, default=5.0)
-    parser.add_argument('--output-2nd', required=False, type=bool, default=False)
+    parser.add_argument(
+        "--init",
+        required=True,
+        type=str,
+        choices=["AHC", "AHC+VB"],
+        help="AHC for using only AHC or AHC+VB for VB-HMM after AHC initilization",
+    )
+    parser.add_argument(
+        "--out-rttm-dir",
+        required=True,
+        type=str,
+        help="Directory to store output rttm files",
+    )
+    parser.add_argument(
+        "--xvec-ark-file", required=True, type=str, help="Kaldi ark file with x-vectors"
+    )
+    parser.add_argument(
+        "--segments-file",
+        required=True,
+        type=str,
+        help="File with x-vector timing info",
+    )
+    parser.add_argument(
+        "--xvec-transform",
+        required=True,
+        type=str,
+        help="path to x-vector transformation h5 file",
+    )
+    parser.add_argument(
+        "--plda-file",
+        required=True,
+        type=str,
+        help="File with PLDA model in Kaldi format",
+    )
+    parser.add_argument(
+        "--threshold", required=True, type=float, help="threshold (bias) used for AHC"
+    )
+    parser.add_argument(
+        "--lda-dim", required=True, type=int, help="LDA dimensionality for VB-HMM"
+    )
+    parser.add_argument(
+        "--Fa", required=True, type=float, help="Parameter of VB-HMM (see VBx.VBx)"
+    )
+    parser.add_argument(
+        "--Fb", required=True, type=float, help="Parameter of VB-HMM (see VBx.VBx)"
+    )
+    parser.add_argument(
+        "--loopP", required=True, type=float, help="Parameter of VB-HMM (see VBx.VBx)"
+    )
+    parser.add_argument("--target-energy", required=False, type=float, default=1.0)
+    parser.add_argument("--init-smoothing", required=False, type=float, default=5.0)
+    parser.add_argument("--output-2nd", required=False, type=bool, default=False)
 
     args = parser.parse_args()
 

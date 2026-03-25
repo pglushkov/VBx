@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 
-from VBx.predict import load_model, extract_xvectors
+from VBx.predict import extract_xvectors, load_model
 from VBx.vbhmm import run_vbhmm
 
 logging.basicConfig(level=logging.INFO)
@@ -17,17 +17,28 @@ logger = logging.getLogger(__name__)
 
 # Default model paths (relative to this file)
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_WEIGHTS = os.path.join(_HERE, 'VBx/models/ResNet101_16kHz/nnet/final.onnx')
-_DEFAULT_TRANSFORM = os.path.join(_HERE, 'VBx/models/ResNet101_16kHz/transform.h5')
-_DEFAULT_PLDA = os.path.join(_HERE, 'VBx/models/ResNet101_16kHz/plda')
+_DEFAULT_WEIGHTS = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/nnet/final.onnx")
+_DEFAULT_TRANSFORM = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/transform.h5")
+_DEFAULT_PLDA = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/plda")
 
 
-def run_diarization(wav_dir, lab_dir, out_dir=None,
-                    weights=_DEFAULT_WEIGHTS, backend='onnx',
-                    xvec_transform=_DEFAULT_TRANSFORM, plda_file=_DEFAULT_PLDA,
-                    init='AHC+VB', threshold=-0.015, lda_dim=128,
-                    Fa=0.3, Fb=17, loopP=0.99,
-                    score=False, ref_rttm_dir=None):
+def run_diarization(
+    wav_dir,
+    lab_dir,
+    out_dir=None,
+    weights=_DEFAULT_WEIGHTS,
+    backend="onnx",
+    xvec_transform=_DEFAULT_TRANSFORM,
+    plda_file=_DEFAULT_PLDA,
+    init="AHC+VB",
+    threshold=-0.015,
+    lda_dim=128,
+    Fa=0.3,
+    Fb=17,
+    loopP=0.99,
+    score=False,
+    ref_rttm_dir=None,
+):
     """Run the full diarization pipeline on all wav files in a directory.
 
     Args:
@@ -57,38 +68,36 @@ def run_diarization(wav_dir, lab_dir, out_dir=None,
         )
 
     if out_dir is None:
-        out_dir = tempfile.mkdtemp(prefix='vbx_')
-        logger.info(f'Using temp output directory: {out_dir}')
+        out_dir = tempfile.mkdtemp(prefix="vbx_")
+        logger.info(f"Using temp output directory: {out_dir}")
 
     os.makedirs(out_dir, exist_ok=True)
 
     # Discover audio files
     wav_files = sorted(
-        os.path.splitext(f)[0]
-        for f in os.listdir(wav_dir)
-        if f.endswith('.wav')
+        os.path.splitext(f)[0] for f in os.listdir(wav_dir) if f.endswith(".wav")
     )
     if not wav_files:
-        raise FileNotFoundError(f'No .wav files found in {wav_dir}')
+        raise FileNotFoundError(f"No .wav files found in {wav_dir}")
 
-    logger.info(f'Found {len(wav_files)} audio file(s)')
+    logger.info(f"Found {len(wav_files)} audio file(s)")
 
     # Load model once
     model, label_name, input_name, device = load_model(weights, backend=backend)
 
     for filename in wav_files:
-        logger.info(f'Processing: {filename}')
+        logger.info(f"Processing: {filename}")
 
-        ark_fn = os.path.join(out_dir, f'{filename}.ark')
-        seg_fn = os.path.join(out_dir, f'{filename}.seg')
+        ark_file_name = os.path.join(out_dir, f"{filename}.ark")
+        seg_file_name = os.path.join(out_dir, f"{filename}.seg")
 
         # Step 1: Extract x-vectors
         extract_xvectors(
             file_names=[filename],
             wav_dir=wav_dir,
             lab_dir=lab_dir,
-            out_ark_fn=ark_fn,
-            out_seg_fn=seg_fn,
+            out_ark_fn=ark_file_name,
+            out_seg_fn=seg_file_name,
             model=model,
             label_name=label_name,
             input_name=input_name,
@@ -98,8 +107,8 @@ def run_diarization(wav_dir, lab_dir, out_dir=None,
 
         # Step 2: VB-HMM clustering
         run_vbhmm(
-            xvec_ark_file=ark_fn,
-            segments_file=seg_fn,
+            xvec_ark_file=ark_file_name,
+            segments_file=seg_file_name,
             xvec_transform=xvec_transform,
             plda_file=plda_file,
             out_rttm_dir=out_dir,
@@ -111,27 +120,41 @@ def run_diarization(wav_dir, lab_dir, out_dir=None,
             loopP=loopP,
         )
 
-    logger.info(f'Results written to: {out_dir}')
+    logger.info(f"Results written to: {out_dir}")
     return out_dir
 
 
 def main():
-    parser = argparse.ArgumentParser(description='VBx speaker diarization pipeline')
-    parser.add_argument('--wav-dir', required=True, help='Directory with input wav files')
-    parser.add_argument('--lab-dir', required=True, help='Directory with VAD label files')
-    parser.add_argument('--out-dir', default=None, help='Output directory (default: temp dir)')
-    parser.add_argument('--weights', default=_DEFAULT_WEIGHTS, help='Path to model weights')
-    parser.add_argument('--backend', default='onnx', choices=['onnx', 'pytorch'])
-    parser.add_argument('--xvec-transform', default=_DEFAULT_TRANSFORM)
-    parser.add_argument('--plda-file', default=_DEFAULT_PLDA)
-    parser.add_argument('--init', default='AHC+VB', choices=['AHC', 'AHC+VB'])
-    parser.add_argument('--threshold', type=float, default=-0.015)
-    parser.add_argument('--lda-dim', type=int, default=128)
-    parser.add_argument('--Fa', type=float, default=0.3)
-    parser.add_argument('--Fb', type=float, default=17)
-    parser.add_argument('--loopP', type=float, default=0.99)
-    parser.add_argument('--score', action='store_true', help='Score against reference (not yet implemented)')
-    parser.add_argument('--ref-rttm-dir', default=None, help='Reference RTTM directory (for scoring)')
+    parser = argparse.ArgumentParser(description="VBx speaker diarization pipeline")
+    parser.add_argument(
+        "--wav-dir", required=True, help="Directory with input wav files"
+    )
+    parser.add_argument(
+        "--lab-dir", required=True, help="Directory with VAD label files"
+    )
+    parser.add_argument(
+        "--out-dir", default=None, help="Output directory (default: temp dir)"
+    )
+    parser.add_argument(
+        "--weights", default=_DEFAULT_WEIGHTS, help="Path to model weights"
+    )
+    parser.add_argument("--backend", default="onnx", choices=["onnx", "pytorch"])
+    parser.add_argument("--xvec-transform", default=_DEFAULT_TRANSFORM)
+    parser.add_argument("--plda-file", default=_DEFAULT_PLDA)
+    parser.add_argument("--init", default="AHC+VB", choices=["AHC", "AHC+VB"])
+    parser.add_argument("--threshold", type=float, default=-0.015)
+    parser.add_argument("--lda-dim", type=int, default=128)
+    parser.add_argument("--Fa", type=float, default=0.3)
+    parser.add_argument("--Fb", type=float, default=17)
+    parser.add_argument("--loopP", type=float, default=0.99)
+    parser.add_argument(
+        "--score",
+        action="store_true",
+        help="Score against reference (not yet implemented)",
+    )
+    parser.add_argument(
+        "--ref-rttm-dir", default=None, help="Reference RTTM directory (for scoring)"
+    )
 
     args = parser.parse_args()
 
@@ -154,5 +177,5 @@ def main():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

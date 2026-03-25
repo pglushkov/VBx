@@ -22,7 +22,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fnlandini/VBx_dev"
+Homepage = "https://github.com/pglushkov/VBx"
 
-[project.scripts]
-vbx-diarize = "run_example:main"
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["VBx*"]
+namespaces = false

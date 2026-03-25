@@ -4,15 +4,18 @@ Speaker diarization pipeline based on x-vector extraction followed by Agglomerat
 
 Based on: F. Landini, J. Profant, M. Diez, L. Burget — *Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization* (Computer Speech & Language, 2022).
 
+Original project GitHub page: https://github.com/BUTSpeechFIT/VBx
+
 ## Installation
 
-```bash
-pip install -e .
-```
-
-Or with [uv](https://docs.astral.sh/uv/):
+Recommented way is to use [uv](https://docs.astral.sh/uv/):
 ```bash
 uv sync
+```
+
+alternatively, in your Python venv of interest:
+```bash
+pip install -e .
 ```
 
 ## Quick start
@@ -20,7 +23,7 @@ uv sync
 Run diarization on the included example audio:
 
 ```bash
-python run_example.py --wav-dir example/audios/16k --lab-dir example/vad
+uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad
 ```
 
 This will:
@@ -31,8 +34,14 @@ This will:
 To specify an output directory:
 
 ```bash
-python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/
+uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/
 ```
+
+## Running in VS Code / Zed
+
+Project contatins default.launch.json file that contains pre-configured tasks to run. Make a copy
+of it in .vscode directory and run the tasks from VS Code or Zed as ususal. Make sure you specify
+correct virtual environment (e.g. .venv created by uv).
 
 ## Output
 
