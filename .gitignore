@@ -1,12 +1,27 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
-.venv/
 *.egg-info/
 dist/
+
+# Virtual environments
+.venv/
+
+# scikit-build-core
+_skbuild/
+
+# CMake (root stub)
+CMakeCache.txt
+CMakeFiles/
+
+# User-generated output
 build/
 exp/
 exp_out/
 tmp_out/
 results/
+
+# IDE / OS
 .vscode/launch.json
+.DS_Store

@@ -1,0 +1,14 @@
+# CMake build directories
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Compiled objects
+*.o
+*.a
+*.so
+*.dylib
+
+# Executables
+vbx_cli

@@ -8,15 +8,40 @@ Original project GitHub page: https://github.com/BUTSpeechFIT/VBx
 
 ## Installation
 
-Recommented way is to use [uv](https://docs.astral.sh/uv/):
+### Requirements
+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- A C++17 compiler (clang, gcc, MSVC)
+- CMake >= 3.16
+
+nanobind is fetched automatically during the build — no manual install needed.
+
+### Python package + native library
+
 ```bash
 uv sync
 ```
 
-alternatively, in your Python venv of interest:
+This triggers the full build chain: **scikit-build-core** (the Python build backend) invokes **CMake** to compile `libvbx` (the C++17 diarization library), then **nanobind** generates `vbx_native` — a Python extension module that exposes the C++ API to Python. The pure Python package (`VBx/`) is included alongside it.
+
+To verify the native module was compiled and is importable:
+
 ```bash
-pip install -e .
+uv run python -c "import vbx_native; print(vbx_native.get_version())"
 ```
+
+### Standalone C++ build (no Python)
+
+To build only the C++ library and CLI tool without any Python dependencies:
+
+```bash
+cd vbx_lib
+cmake -B build -S .
+cmake --build build
+./build/vbx_cli
+```
+
+This builds `libvbx.a` and the `vbx_cli` executable. The Python bindings are skipped (controlled by the `VBX_BUILD_PYTHON_BINDINGS` CMake option, which defaults to OFF).
 
 ## Quick start
 
