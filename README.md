@@ -127,6 +127,10 @@ out_dir = run_diarization(
 - **Audio**: `.wav` files, mono, 8kHz or 16kHz sample rate
 - **VAD labels**: `.lab` files (one per wav, same base name) with two columns: `start_time end_time` in seconds
 
+## Third-party dependencies (C++ library)
+
+See `vbx_lib/THIRD_PARTY_NOTICES` for full attribution details.
+
 ## License
 
 Apache License 2.0 — see the original repository for details.

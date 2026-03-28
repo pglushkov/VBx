@@ -1,4 +1,7 @@
+#include <vector>
+
 #include "vbx/clustering.h"
+#include "fastcluster.h"
 
 namespace vbx {
 

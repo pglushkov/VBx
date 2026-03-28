@@ -12,7 +12,10 @@ add_library(vbx
     src/vbhmm.cpp
     src/vbx.cpp
 )
-target_include_directories(vbx PUBLIC include)
+target_include_directories(vbx PUBLIC
+    include
+    third_party/fastcluster
+)
 
 # --- vbx_cli ---
 add_executable(vbx_cli tools/vbx_cli.cpp)

@@ -1,0 +1,28 @@
+This file lists third-party software included in the vbx_lib distribution,
+along with their authors, licenses, and original sources.
+
+================================================================================
+fastcluster — Fast Hierarchical, Agglomerative Clustering Routines
+================================================================================
+
+Location:    third_party/fastcluster/
+Authors:     Daniel Muellner (2011), Christoph Dalitz (2018-2020)
+License:     BSD 2-Clause
+Source:      https://lionel.kr.hs-niederrhein.de/~dalitz/data/hclust/
+             http://danifold.net/fastcluster.html
+
+Reference:
+  Daniel Muellner: "fastcluster: Fast Hierarchical, Agglomerative Clustering
+  Routines for R and Python." Journal of Statistical Software 53(9), 1-18 (2013)
+
+Full license text is in third_party/fastcluster/LICENSE.
+
+================================================================================
+nanobind — Seamless operability between C++17 and Python
+================================================================================
+
+Note:        Not vendored. Fetched at build time via CMake FetchContent or
+             provided by scikit-build-core as a build dependency.
+Author:      Wenzel Jakob
+License:     BSD 3-Clause
+Source:      https://github.com/wjakob/nanobind
