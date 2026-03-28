@@ -92,6 +92,8 @@ struct CondensedMatrixViewT {
     }
 };
 
+inline int condensed_size(int n) { return n * (n - 1) / 2; }
+
 using CondensedMatrixViewF = CondensedMatrixViewT<float>;
 using CondensedMatrixViewD = CondensedMatrixViewT<double>;
 using CondensedMatrixView  = CondensedMatrixViewD;

@@ -11,6 +11,7 @@ add_library(vbx
     src/scoring.cpp
     src/vbhmm.cpp
     src/vbx.cpp
+    third_party/fastcluster/fastcluster.cpp
 )
 target_include_directories(vbx PUBLIC
     include

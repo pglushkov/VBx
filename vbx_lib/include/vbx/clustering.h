@@ -45,6 +45,22 @@ template <typename Scalar>
 CalibrationResultT<Scalar> two_gmm_calibrate(const Scalar* scores, int n,
                                               int niters = 20);
 
+// ---------------------------------------------------------------------------
+// Linkage result (average-linkage via fastcluster)
+// ---------------------------------------------------------------------------
+
+struct LinkageResult {
+    std::vector<int> merge;       // (n-1)*2 array, R hclust convention
+    std::vector<double> height;   // (n-1) merge distances
+};
+
+// Average linkage on condensed distance matrix (N*(N-1)/2 elements).
+// Copies distmat internally — safe when caller still needs the data.
+LinkageResult average_linkage(const double* distmat, int n);
+
+// In-place variant — destroys distmat. Zero-copy for internal pipelines.
+LinkageResult average_linkage_inplace(double* distmat, int n);
+
 // AHC on condensed cosine similarity vector.
 // Returns N cluster labels (0-based).
 template <typename Scalar>

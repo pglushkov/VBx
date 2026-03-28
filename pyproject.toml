@@ -25,6 +25,9 @@ dependencies = [
     'intervaltree'
 ]
 
+[dependency-groups]
+dev = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/pglushkov/VBx"
 
