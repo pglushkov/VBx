@@ -1,9 +1,9 @@
 import fastcluster
 import numpy as np
 import vbx_native
+from scipy.cluster.hierarchy import fcluster
 from scipy.spatial.distance import squareform
 
-# from scipy.cluster.hierarchy import fcluster
 from VBx.diarization_lib import cos_similarity
 
 
@@ -27,36 +27,26 @@ def test_average_linkage_heights():
     np.testing.assert_allclose(np.sort(Z_cpp[:, 2]), np.sort(Z_py[:, 2]), atol=1e-12)
 
 
-# NOTE: Refactor this test once ahc_cluster is implemented — should compare
-# full C++ pipeline (cosine_similarity -> average_linkage -> cutree) labels
-# against the Python reference. Currently disabled because the C++ linkage
-# matrix uses R hclust convention internally and the scipy-convention
-# conversion needs validation for fcluster compatibility.
-#
-# def test_average_linkage_end_to_end_labels():
-#     """C++ cosine sim -> Python linkage -> fcluster should match pure-Python path."""
-#     rng = np.random.default_rng(42)
-#     N, D = 20, 64
-#     xvecs = rng.standard_normal((N, D))
-#
-#     sim_py = cos_similarity(xvecs)
-#     dist_py = squareform(-sim_py, checks=False)
-#     Z_py = fastcluster.linkage(dist_py, method="average")
-#
-#     sim_cpp = vbx_native.cosine_similarity(xvecs)
-#     Z_cpp_dist = fastcluster.linkage(np.ascontiguousarray(-sim_cpp),
-#                                       method="average")
-#
-#     adjust_py = abs(Z_py[:, 2].min())
-#     Z_py[:, 2] += adjust_py
-#     adjust_cpp = abs(Z_cpp_dist[:, 2].min())
-#     Z_cpp_dist[:, 2] += adjust_cpp
-#
-#     for t in [0.5, 1.0, 1.5, 2.0]:
-#         labels_py = fcluster(Z_py, t, criterion="distance")
-#         labels_cpp = fcluster(Z_cpp_dist, t, criterion="distance")
-#         assert _same_partition(labels_py, labels_cpp), \
-#             f"Partitions differ at threshold {t}"
+def test_average_linkage_end_to_end_labels():
+    """Full C++ path vs full Python path should produce same cluster partitions."""
+    rng = np.random.default_rng(42)
+    N, D = 20, 64
+    xvecs = rng.standard_normal((N, D))
+
+    # Python path
+    sim_py = cos_similarity(xvecs)
+    dist_py = squareform(-sim_py, checks=False)
+    Z_py = fastcluster.linkage(dist_py, method="average")
+
+    # C++ path
+    sim_cpp = vbx_native.cosine_similarity(xvecs)
+    Z_cpp = vbx_native.average_linkage(-sim_cpp, N)
+
+    # Shift heights to non-negative for fcluster
+    Z_py[:, 2] += abs(Z_py[:, 2].min())
+    Z_cpp[:, 2] += abs(Z_cpp[:, 2].min())
+
+    assert np.allclose(Z_py, Z_cpp)
 
 
 def test_average_linkage_small():
@@ -71,21 +61,30 @@ def test_average_linkage_small():
     np.testing.assert_allclose(Z_cpp[:, 3], Z_py[:, 3], atol=1e-15)
 
 
-def _same_partition(a, b):
-    """Check if two label arrays define the same partition (ignoring label values)."""
-    mapping = {}
-    for la, lb in zip(a, b):
-        if la in mapping:
-            if mapping[la] != lb:
-                return False
-        else:
-            mapping[la] = lb
-    # Also check reverse mapping is consistent
-    rev = {}
-    for la, lb in zip(a, b):
-        if lb in rev:
-            if rev[lb] != la:
-                return False
-        else:
-            rev[lb] = la
-    return True
+# def test_clusterization():
+#     # TODO: work on this test once final clusterization is done
+#     def _same_partition(a, b):
+#         """Check if two label arrays define the same partition (ignoring label values)."""
+#         mapping = {}
+#         for la, lb in zip(a, b):
+#             if la in mapping:
+#                 if mapping[la] != lb:
+#                     return False
+#             else:
+#                 mapping[la] = lb
+#         # Also check reverse mapping is consistent
+#         rev = {}
+#         for la, lb in zip(a, b):
+#             if lb in rev:
+#                 if rev[lb] != la:
+#                     return False
+#             else:
+#                 rev[lb] = la
+#         return True
+
+#     for t in [0.5, 1.0, 1.5, 2.0]:
+#         labels_py = fcluster(Z_py, t, criterion="distance")
+#         labels_cpp = fcluster(Z_cpp, t, criterion="distance")
+#         assert _same_partition(labels_py, labels_cpp), (
+#             f"Partitions differ at threshold {t}"
+#         )

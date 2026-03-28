@@ -276,7 +276,6 @@ struct CalibrationResultT {
 
 using CalibrationResultF = CalibrationResultT<float>;
 using CalibrationResultD = CalibrationResultT<double>;
-using CalibrationResult  = CalibrationResultD;
 
 // Fit 2-component GMM with shared variance on flattened scores,
 // return the intersection threshold and calibrated scores.

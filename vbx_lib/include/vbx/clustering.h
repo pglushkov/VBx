@@ -18,7 +18,6 @@ struct CalibrationResultT {
 
 using CalibrationResultF = CalibrationResultT<float>;
 using CalibrationResultD = CalibrationResultT<double>;
-using CalibrationResult  = CalibrationResultD;
 
 // ---------------------------------------------------------------------------
 // AHC params
@@ -46,12 +45,18 @@ CalibrationResultT<Scalar> two_gmm_calibrate(const Scalar* scores, int n,
                                               int niters = 20);
 
 // ---------------------------------------------------------------------------
-// Linkage result (average-linkage via fastcluster)
+// Linkage result — scipy convention, (n-1) x 4 row-major
 // ---------------------------------------------------------------------------
 
 struct LinkageResult {
-    std::vector<int> merge;       // (n-1)*2 array, R hclust convention
-    std::vector<double> height;   // (n-1) merge distances
+    // (n-1) x 4 row-major: [idx1, idx2, height, size] per step.
+    // Indices: leaves 0..n-1, merged clusters n, n+1, ...
+    // idx1 < idx2 in each row.
+    std::vector<double> data;
+    int steps = 0;  // n - 1
+
+    double* row(int i) { return data.data() + i * 4; }
+    const double* row(int i) const { return data.data() + i * 4; }
 };
 
 // Average linkage on condensed distance matrix (N*(N-1)/2 elements).
