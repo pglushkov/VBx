@@ -23,7 +23,15 @@ option(VBX_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
 
 if(VBX_BUILD_PYTHON_BINDINGS)
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-    find_package(nanobind CONFIG REQUIRED)
+    find_package(nanobind CONFIG QUIET)
+    if(NOT nanobind_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(nanobind
+            GIT_REPOSITORY https://github.com/wjakob/nanobind
+            GIT_TAG        v2.4.0
+        )
+        FetchContent_MakeAvailable(nanobind)
+    endif()
     nanobind_add_module(vbx_native STABLE_ABI NB_STATIC
         bindings/python/bind_vbx.cpp
     )
