@@ -30,6 +30,12 @@ To verify the native module was compiled and is importable:
 uv run python -c "import vbx_native; print(vbx_native.get_version())"
 ```
 
+Hint: during development cycles to re-build C++ library and test it with Python fire
+
+```bash
+uv sync --reinstall-package vbx
+```
+
 ### Standalone C++ build (no Python)
 
 To build only the C++ library and CLI tool without any Python dependencies:
