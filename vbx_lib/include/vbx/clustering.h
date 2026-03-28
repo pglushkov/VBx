@@ -66,6 +66,10 @@ LinkageResult average_linkage(const double* distmat, int n);
 // In-place variant — destroys distmat. Zero-copy for internal pipelines.
 LinkageResult average_linkage_inplace(double* distmat, int n);
 
+// Cut a linkage matrix at distance threshold t (scipy "distance" criterion).
+// Returns N labels (1-based, matching scipy convention).
+std::vector<int> fcluster_distance(const LinkageResult& Z, double t);
+
 // AHC on condensed cosine similarity vector.
 // Returns N cluster labels (0-based).
 template <typename Scalar>

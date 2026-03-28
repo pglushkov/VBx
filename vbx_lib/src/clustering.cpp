@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 #include "vbx/clustering.h"
@@ -94,6 +95,45 @@ LinkageResult average_linkage_inplace(double* distmat, int n) {
 LinkageResult average_linkage(const double* distmat, int n) {
     std::vector<double> dist_copy(distmat, distmat + condensed_size(n));
     return average_linkage_inplace(dist_copy.data(), n);
+}
+
+std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
+    const int n = Z.steps + 1;
+    // Union-find: parent[i] = parent of node i (leaves 0..n-1, clusters n..2n-2)
+    std::vector<int> parent(2 * n - 1);
+    std::iota(parent.begin(), parent.end(), 0);
+
+    auto find = [&](int x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+
+    // Union all merge steps with height <= t
+    for (int i = 0; i < Z.steps; ++i) {
+        const double* row = Z.row(i);
+        if (row[2] > t) break;  // monotonic heights — all remaining are > t
+        int a = find(static_cast<int>(row[0]));
+        int b = find(static_cast<int>(row[1]));
+        int cluster_id = n + i;  // scipy convention
+        parent[a] = cluster_id;
+        parent[b] = cluster_id;
+    }
+
+    // Assign labels (1-based) to each leaf
+    std::vector<int> labels(n);
+    int next_label = 1;
+    std::vector<int> root_to_label(2 * n - 1, 0);
+    for (int i = 0; i < n; ++i) {
+        int root = find(i);
+        if (root_to_label[root] == 0) {
+            root_to_label[root] = next_label++;
+        }
+        labels[i] = root_to_label[root];
+    }
+    return labels;
 }
 
 template <typename Scalar>

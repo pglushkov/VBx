@@ -7,6 +7,17 @@ from scipy.spatial.distance import squareform
 from VBx.diarization_lib import cos_similarity
 
 
+def _normalize_labels(labels):
+    """Remap labels so first occurrence of each label gets 1, next new label gets 2, etc."""
+    mapping = {}
+    out = []
+    for l in labels:
+        if l not in mapping:
+            mapping[l] = len(mapping) + 1
+        out.append(mapping[l])
+    return np.array(out)
+
+
 def test_average_linkage_heights():
     """Heights from C++ and Python fastcluster should match."""
     rng = np.random.default_rng(42)
@@ -27,8 +38,8 @@ def test_average_linkage_heights():
     np.testing.assert_allclose(np.sort(Z_cpp[:, 2]), np.sort(Z_py[:, 2]), atol=1e-12)
 
 
-def test_average_linkage_end_to_end_labels():
-    """Full C++ path vs full Python path should produce same cluster partitions."""
+def test_average_linkage_end_to_end():
+    """Full C++ path vs full Python path should produce identical linkage matrices."""
     rng = np.random.default_rng(42)
     N, D = 20, 64
     xvecs = rng.standard_normal((N, D))
@@ -42,10 +53,6 @@ def test_average_linkage_end_to_end_labels():
     sim_cpp = vbx_native.cosine_similarity(xvecs)
     Z_cpp = vbx_native.average_linkage(-sim_cpp, N)
 
-    # Shift heights to non-negative for fcluster
-    Z_py[:, 2] += abs(Z_py[:, 2].min())
-    Z_cpp[:, 2] += abs(Z_cpp[:, 2].min())
-
     assert np.allclose(Z_py, Z_cpp)
 
 
@@ -56,35 +63,60 @@ def test_average_linkage_small():
     Z_py = fastcluster.linkage(dist.copy(), method="average")
     Z_cpp = vbx_native.average_linkage(dist, 3)
 
-    # Heights and sizes should match exactly
     np.testing.assert_allclose(Z_cpp[:, 2], Z_py[:, 2], atol=1e-15)
     np.testing.assert_allclose(Z_cpp[:, 3], Z_py[:, 3], atol=1e-15)
 
 
-# def test_clusterization():
-#     # TODO: work on this test once final clusterization is done
-#     def _same_partition(a, b):
-#         """Check if two label arrays define the same partition (ignoring label values)."""
-#         mapping = {}
-#         for la, lb in zip(a, b):
-#             if la in mapping:
-#                 if mapping[la] != lb:
-#                     return False
-#             else:
-#                 mapping[la] = lb
-#         # Also check reverse mapping is consistent
-#         rev = {}
-#         for la, lb in zip(a, b):
-#             if lb in rev:
-#                 if rev[lb] != la:
-#                     return False
-#             else:
-#                 rev[lb] = la
-#         return True
+def test_fcluster_distance_vs_scipy():
+    """C++ fcluster_distance should match scipy fcluster for various thresholds."""
+    rng = np.random.default_rng(123)
+    N, D = 30, 64
+    xvecs = rng.standard_normal((N, D))
 
-#     for t in [0.5, 1.0, 1.5, 2.0]:
-#         labels_py = fcluster(Z_py, t, criterion="distance")
-#         labels_cpp = fcluster(Z_cpp, t, criterion="distance")
-#         assert _same_partition(labels_py, labels_cpp), (
-#             f"Partitions differ at threshold {t}"
-#         )
+    sim = vbx_native.cosine_similarity(xvecs)
+    Z = vbx_native.average_linkage(-sim, N)
+
+    # Shift to non-negative heights (required by scipy fcluster)
+    Z[:, 2] += abs(Z[:, 2].min())
+
+    for t in [0.2, 0.5, 1.0, 1.5, 2.0, 3.0]:
+        labels_scipy = _normalize_labels(fcluster(Z.copy(), t, criterion="distance"))
+        labels_cpp = _normalize_labels(vbx_native.fcluster_distance(Z, t))
+        assert np.array_equal(labels_scipy, labels_cpp), \
+            f"Partitions differ at threshold {t}: scipy={labels_scipy}, cpp={labels_cpp}"
+
+
+def test_fcluster_distance_label_order_differs():
+    """Demonstrate that C++ and scipy assign different label numbers to the same partition."""
+    # 4 points: d(2,3)=1, d(0,1)=2, all others=10
+    # Merge order: {2,3} first, then {0,1}, then everything.
+    # Cut at t=5 → two clusters: {0,1} and {2,3}
+    dist = np.array([2.0, 10.0, 10.0, 10.0, 10.0, 1.0])
+    Z = vbx_native.average_linkage(dist, 4)
+
+    labels_scipy = fcluster(Z, 5.0, criterion="distance")
+    labels_cpp = np.array(vbx_native.fcluster_distance(Z, 5.0))
+
+    # Raw labels differ: scipy visits smaller cluster index first (top-down),
+    # C++ scans leaves left-to-right.
+    assert not np.array_equal(labels_scipy, labels_cpp), \
+        "Expected different raw labels (if this fails, the test premise is wrong)"
+
+    # But normalized labels match — same partition.
+    assert np.array_equal(_normalize_labels(labels_scipy), _normalize_labels(labels_cpp))
+
+
+def test_fcluster_distance_all_one_cluster():
+    """Threshold above max height should put everything in one cluster."""
+    dist = np.array([1.0, 2.0, 3.0])
+    Z = vbx_native.average_linkage(dist, 3)
+    labels = np.array(vbx_native.fcluster_distance(Z, 999.0))
+    assert np.all(labels == labels[0])
+
+
+def test_fcluster_distance_all_singletons():
+    """Threshold below min height should give each point its own cluster."""
+    dist = np.array([1.0, 2.0, 3.0])
+    Z = vbx_native.average_linkage(dist, 3)
+    labels = np.array(vbx_native.fcluster_distance(Z, Z[0, 2] - 0.01))
+    assert len(set(labels)) == 3
