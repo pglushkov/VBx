@@ -34,7 +34,6 @@ import h5py
 import kaldi_io
 import numpy as np
 from scipy.cluster.hierarchy import fcluster
-from scipy.linalg import eigh
 from scipy.spatial.distance import squareform
 from scipy.special import softmax
 
@@ -45,8 +44,8 @@ from .diarization_lib import (
     read_xvector_timing_dict,
     twoGMMcalib_lin,
 )
-from .kaldi_utils import read_plda
-from .VBx import VBx
+from .kaldi_utils import read_plda_params_from_kaldi_format
+from .VBx import VBx, VBx_plda
 
 
 def write_output(fp, file_name, out_labels, starts, ends):
@@ -95,14 +94,6 @@ def run_vbhmm(
 
     segs_dict = read_xvector_timing_dict(segments_file)
 
-    kaldi_plda = read_plda(plda_file)
-    plda_mu, plda_tr, plda_psi = kaldi_plda
-    W = np.linalg.inv(plda_tr.T.dot(plda_tr))
-    B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
-    acvar, wccn = eigh(B, W)
-    plda_psi = acvar[::-1]
-    plda_tr = wccn.T[::-1]
-
     arkit = kaldi_io.read_vec_flt_ark(xvec_ark_file)
     recit = itertools.groupby(arkit, lambda e: e[0].rsplit("_", 1)[0])
     for file_name, segs in recit:
@@ -110,35 +101,53 @@ def run_vbhmm(
         seg_names, xvecs = zip(*segs)
         x = np.array(xvecs)
 
-        with h5py.File(xvec_transform, "r") as f:
-            mean1 = np.array(f["mean1"])
-            mean2 = np.array(f["mean2"])
-            lda = np.array(f["lda"])
-            x = l2_norm(lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2)
+        if xvec_transform:
+            with h5py.File(xvec_transform, "r") as f:
+                mean1 = np.array(f["mean1"])
+                mean2 = np.array(f["mean2"])
+                lda = np.array(f["lda"])
+                x = l2_norm(
+                    lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2
+                )
 
-        if init == "AHC" or init.endswith("VB"):
-            if init.startswith("AHC"):
-                scr_mx = cos_similarity(x)  # result is matrix
-                thr, _ = twoGMMcalib_lin(scr_mx.ravel())
-                scr_mx = squareform(-scr_mx, checks=False)
-                lin_mat = fastcluster.linkage(
-                    scr_mx, method="average", preserve_input="False"
+        if not (init == "AHC" or init.endswith("VB")):
+            raise ValueError("Wrong option for init.")
+
+        if init.startswith("AHC"):
+            scr_mx = cos_similarity(x)  # result is matrix
+            thr, _ = twoGMMcalib_lin(scr_mx.ravel())
+            scr_mx = squareform(-scr_mx, checks=False)
+            lin_mat = fastcluster.linkage(
+                scr_mx, method="average", preserve_input="False"
+            )
+            del scr_mx
+            adjust = abs(lin_mat[:, 2].min())
+            lin_mat[:, 2] += adjust
+            labels1st = (
+                fcluster(lin_mat, -(thr + threshold) + adjust, criterion="distance") - 1
+            )
+        if init.endswith("VB"):
+            qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
+            qinit[range(len(labels1st)), labels1st] = 1.0
+            qinit = softmax(qinit * init_smoothing, axis=1)
+            if plda_file:
+                plda_params = read_plda_params_from_kaldi_format(
+                    plda_file=plda_file, lda_dim=lda_dim
                 )
-                del scr_mx
-                adjust = abs(lin_mat[:, 2].min())
-                lin_mat[:, 2] += adjust
-                labels1st = (
-                    fcluster(lin_mat, -(thr + threshold) + adjust, criterion="distance")
-                    - 1
+                q, sp, L = VBx_plda(
+                    x,
+                    plda_params,
+                    pi=qinit.shape[1],
+                    gamma=qinit,
+                    maxIters=40,
+                    epsilon=1e-6,
+                    loopProb=loopP,
+                    Fa=Fa,
+                    Fb=Fb,
                 )
-            if init.endswith("VB"):
-                qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
-                qinit[range(len(labels1st)), labels1st] = 1.0
-                qinit = softmax(qinit * init_smoothing, axis=1)
-                fea = (x - plda_mu).dot(plda_tr.T)[:, :lda_dim]
+            else:
                 q, sp, L = VBx(
-                    fea,
-                    plda_psi[:lda_dim],
+                    x,
                     pi=qinit.shape[1],
                     gamma=qinit,
                     maxIters=40,
@@ -148,11 +157,9 @@ def run_vbhmm(
                     Fb=Fb,
                 )
 
-                labels1st = np.argsort(-q, axis=1)[:, 0]
-                if q.shape[1] > 1:
-                    labels2nd = np.argsort(-q, axis=1)[:, 1]
-        else:
-            raise ValueError("Wrong option for init.")
+            labels1st = np.argsort(-q, axis=1)[:, 0]
+            if q.shape[1] > 1:
+                labels2nd = np.argsort(-q, axis=1)[:, 1]
 
         assert np.all(segs_dict[file_name][0] == np.array(seg_names))
         start, end = segs_dict[file_name][1].T

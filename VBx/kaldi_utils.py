@@ -13,17 +13,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import struct
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
-
-from kaldi_io import open_or_fd, BadSampleSize, UnknownMatrixHeader
+from kaldi_io import BadSampleSize, UnknownMatrixHeader, open_or_fd
 from kaldi_io.kaldi_io import _read_compressed_mat, _read_mat_ascii
+from scipy.linalg import eigh
+
+
+@dataclass(frozen=True)
+class PLDAParams:
+    # dimensionality of the learned PLDA transform
+    dim: int
+
+    # Array with global mean of all x-vectors used to train the
+    # PLDA model
+    mean: np.ndarray
+
+    # Transformation matrix to go from x-vector space to PLDA space
+    transform: np.ndarray
+
+    # Array with across-class covariance matrix diagonal.
+    # The model assumes zero mean, diagonal across-class and
+    # identity within-class covariance matrix.
+    psi: np.ndarray
+
+
+def read_plda_params_from_kaldi_format(
+    plda_file: Path | str, lda_dim: int
+) -> PLDAParams:
+    kaldi_plda = read_plda(plda_file)
+    plda_mu, plda_tr, plda_psi = kaldi_plda
+    assert isinstance(plda_mu, np.ndarray)
+    assert isinstance(plda_tr, np.ndarray)
+    assert isinstance(plda_psi, np.ndarray)
+    W = np.linalg.inv(plda_tr.T.dot(plda_tr))
+    B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
+    acvar, wccn = eigh(B, W)
+    plda_psi = acvar[::-1]
+    plda_tr = wccn.T[::-1]
+
+    plda_psi = plda_psi[:lda_dim]
+    return PLDAParams(dim=lda_dim, mean=plda_mu, transform=plda_tr, psi=plda_psi)
 
 
 def read_plda(file_or_fd):
-    """ Loads PLDA from a file in kaldi format (binary or text).
+    """Loads PLDA from a file in kaldi format (binary or text).
     Input:
         file_or_fd - file name or file handle with kaldi PLDA model.
     Output:
@@ -35,18 +72,18 @@ def read_plda(file_or_fd):
     fd = open_or_fd(file_or_fd)
     try:
         binary = fd.read(2)
-        if binary == b'\x00B':
-            assert(fd.read(7) == b'<Plda> ')
+        if binary == b"\x00B":
+            assert fd.read(7) == b"<Plda> "
             plda_mean = _read_vec_binary(fd)
             plda_trans = _read_mat_binary(fd)
             plda_psi = _read_vec_binary(fd)
         else:
-            assert(binary+fd.read(5) == b'<Plda> ')
-            plda_mean = np.array(fd.readline().strip(' \n[]').split(), dtype=float)
-            assert(fd.read(2) == b' [')
+            assert binary + fd.read(5) == b"<Plda> "
+            plda_mean = np.array(fd.readline().strip(" \n[]").split(), dtype=float)
+            assert fd.read(2) == b" ["
             plda_trans = _read_mat_ascii(fd)
-            plda_psi = np.array(fd.readline().strip(' \n[]').split(), dtype=float)
-        assert(fd.read(8) == b'</Plda> ')
+            plda_psi = np.array(fd.readline().strip(" \n[]").split(), dtype=float)
+        assert fd.read(8) == b"</Plda> "
     finally:
         if fd is not file_or_fd:
             fd.close()
@@ -56,22 +93,22 @@ def read_plda(file_or_fd):
 def _read_vec_binary(fd):
     # Data type,
     type = fd.read(3)
-    if type == b'FV ':
+    if type == b"FV ":
         sample_size = 4  # floats
-    elif type == b'DV ':
+    elif type == b"DV ":
         sample_size = 8  # doubles
     else:
         raise BadSampleSize
-    assert(sample_size > 0)
+    assert sample_size > 0
     # Dimension,
-    assert fd.read(1) == b'\4'  # int-size
-    vec_size = struct.unpack('<i', fd.read(4))[0]  # vector dim
+    assert fd.read(1) == b"\4"  # int-size
+    vec_size = struct.unpack("<i", fd.read(4))[0]  # vector dim
     # Read whole vector,
     buf = fd.read(vec_size * sample_size)
     if sample_size == 4:
-        ans = np.frombuffer(buf, dtype='float32')
+        ans = np.frombuffer(buf, dtype="float32")
     elif sample_size == 8:
-        ans = np.frombuffer(buf, dtype='float64')
+        ans = np.frombuffer(buf, dtype="float64")
     else:
         raise BadSampleSize
     return ans
@@ -81,25 +118,27 @@ def _read_mat_binary(fd):
     # Data type
     header = fd.read(3).decode()
     # 'CM', 'CM2', 'CM3' are possible values,
-    if header.startswith('CM'):
+    if header.startswith("CM"):
         return _read_compressed_mat(fd, header)
-    elif header.startswith('SM'):
+    elif header.startswith("SM"):
         return _read_sparse_mat(fd, header)
-    elif header == 'FM ':
+    elif header == "FM ":
         sample_size = 4  # floats
-    elif header == 'DM ':
+    elif header == "DM ":
         sample_size = 8  # doubles
     else:
         raise UnknownMatrixHeader("The header contained '%s'" % header)
-    assert(sample_size > 0)
+    assert sample_size > 0
     # Dimensions
-    s1, rows, s2, cols = np.frombuffer(fd.read(10), dtype='int8,int32,int8,int32', count=1)[0]
+    s1, rows, s2, cols = np.frombuffer(
+        fd.read(10), dtype="int8,int32,int8,int32", count=1
+    )[0]
     # Read whole matrix
     buf = fd.read(rows * cols * sample_size)
     if sample_size == 4:
-        vec = np.frombuffer(buf, dtype='float32')
+        vec = np.frombuffer(buf, dtype="float32")
     elif sample_size == 8:
-        vec = np.frombuffer(buf, dtype='float64')
+        vec = np.frombuffer(buf, dtype="float64")
     else:
         raise BadSampleSize
     mat = np.reshape(vec, (rows, cols))
@@ -107,31 +146,31 @@ def _read_mat_binary(fd):
 
 
 def _read_sparse_mat(fd, format):
-    """ Read a sparse matrix,
-    """
+    """Read a sparse matrix,"""
     from scipy.sparse import csr_matrix
-    assert (format == 'SM ')
+
+    assert format == "SM "
 
     # Mapping for matrix elements,
     def read_sparse_vector(fd):
         _format = fd.read(3).decode()
-        assert (_format == 'SV ')
-        _, dim = np.frombuffer(fd.read(5), dtype='int8,int32', count=1)[0]
-        _, num_elems = np.frombuffer(fd.read(5), dtype='int8,int32', count=1)[0]
+        assert _format == "SV "
+        _, dim = np.frombuffer(fd.read(5), dtype="int8,int32", count=1)[0]
+        _, num_elems = np.frombuffer(fd.read(5), dtype="int8,int32", count=1)[0]
         col = []
         data = []
         for j in range(num_elems):
-            size = np.frombuffer(fd.read(1), dtype='int8', count=1)[0]
-            dtype = 'int32' if size == 4 else 'int64'
+            size = np.frombuffer(fd.read(1), dtype="int8", count=1)[0]
+            dtype = "int32" if size == 4 else "int64"
             c = np.frombuffer(fd.read(size), dtype=dtype, count=1)[0]
-            size = np.frombuffer(fd.read(1), dtype='int8', count=1)[0]
-            dtype = 'float32' if size == 4 else 'float64'
+            size = np.frombuffer(fd.read(1), dtype="int8", count=1)[0]
+            dtype = "float32" if size == 4 else "float64"
             d = np.frombuffer(fd.read(size), dtype=dtype, count=1)[0]
             col.append(c)
             data.append(d)
         return col, data, dim
 
-    _, num_rows = np.frombuffer(fd.read(5), dtype='int8,int32', count=1)[0]
+    _, num_rows = np.frombuffer(fd.read(5), dtype="int8,int32", count=1)[0]
 
     rows = []
     cols = []
