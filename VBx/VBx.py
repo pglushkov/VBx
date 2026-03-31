@@ -42,7 +42,85 @@ def VBx(
     alpha=None,
     invL=None,
 ):
-    raise NotImplementedError("Non-PLDA mode for VBX is not implemented yet")
+    # X = (x_vecs - plda_mu).dot(plda_tr.T)[:, :lda_dim] # NO-PLDA
+    X = x_vecs
+    D = X.shape[1]  # feature (e.g. x-vector) dimensionality
+
+    if type(pi) is int:
+        pi = np.ones(pi) / pi
+
+    if gamma is None:
+        # initialize gamma from flat Dirichlet prior with
+        # concentration parameter alphaQInit
+        gamma = np.random.gamma(alphaQInit, size=(X.shape[0], len(pi)))
+        gamma = gamma / gamma.sum(1, keepdims=True)
+
+    assert gamma.shape[1] == len(pi) and gamma.shape[0] == X.shape[0]
+
+    G = -0.5 * (
+        np.sum(X**2, axis=1, keepdims=True) + D * np.log(2 * np.pi)
+    )  # per-frame constant term in (23)
+    # V = np.sqrt(Phi)  # between (5) and (6) # NO-PLDA
+    # rho = X * V  # (18) # NO-PLDA
+    rho = X
+    Li = []
+    pseudo_phi = np.ones(D, dtype=np.float64) / D
+    for ii in range(maxIters):
+        # Do not start with estimating speaker models if those are provided
+        # in the argument
+        if ii > 0 or alpha is None or invL is None:
+            invL = 1.0 / (
+                # 1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T * Phi # NO-PLDA
+                1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T
+            )  # (17) for all speakers
+            alpha = Fa / Fb * invL * gamma.T.dot(rho)  # (16) for all speakers
+        log_p_ = Fa * (
+            # rho.dot(alpha.T) - 0.5 * (invL + alpha**2).dot(Phi) + G # NO-PLDA
+            rho.dot(alpha.T) - 0.5 * (invL + alpha**2).dot(pseudo_phi) + G
+        )  # (23) for all speakers
+        tr = (
+            np.eye(len(pi)) * loopProb + (1 - loopProb) * pi
+        )  # (1) transition probability matrix
+        gamma, log_pX_, logA, logB = forward_backward(
+            log_p_, tr, pi
+        )  # (19) gamma, (20) logA, (21) logB, (22) log_pX_
+        ELBO = log_pX_ + Fb * 0.5 * np.sum(np.log(invL) - invL - alpha**2 + 1)  # (25)
+        pi = gamma[0] + (1 - loopProb) * pi * np.sum(
+            np.exp(
+                logsumexp(logA[:-1], axis=1, keepdims=True)
+                + log_p_[1:]
+                + logB[1:]
+                - log_pX_
+            ),
+            axis=0,
+        )  # (24)
+        pi = pi / pi.sum()
+        Li.append([ELBO])
+
+        # if reference is provided, report DER, cross-entropy and plot figures
+        if ref is not None:
+            Li[-1] += [DER(gamma, ref), DER(gamma, ref, xentropy=True)]
+
+            if plot:
+                import matplotlib.pyplot
+
+                if ii == 0:
+                    matplotlib.pyplot.clf()
+                matplotlib.pyplot.subplot(maxIters, 1, ii + 1)
+                matplotlib.pyplot.plot(gamma, lw=2)
+                matplotlib.pyplot.imshow(
+                    np.atleast_2d(ref),
+                    interpolation="none",
+                    aspect="auto",
+                    cmap=matplotlib.pyplot.cm.Pastel1,
+                    extent=(0, len(ref), -0.05, 1.05),
+                )
+
+        if ii > 0 and ELBO - Li[-2][0] < epsilon:
+            if ELBO - Li[-2][0] < 0:
+                print("WARNING: Value of auxiliary function has decreased!")
+            break
+    return (gamma, pi, Li) + ((alpha, invL) if return_model else ())
 
 
 def VBx_plda(

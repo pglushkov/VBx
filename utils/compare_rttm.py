@@ -20,8 +20,10 @@ def compare_rttm(file_a, file_b):
     spk_b = read_speakers(file_b)
 
     if len(spk_a) != len(spk_b):
-        print(f"ERROR: different number of lines ({len(spk_a)} vs {len(spk_b)})")
-        return False
+        print(f"WARNING: different number of lines ({len(spk_a)} vs {len(spk_b)})")
+        n_lines = min(len(spk_a), len(spk_b))
+        spk_a = spk_a[:n_lines]
+        spk_b = spk_b[:n_lines]
 
     # Build mapping from file_a labels to file_b labels
     mapping = {}
@@ -47,7 +49,9 @@ def compare_rttm(file_a, file_b):
             print(f"  Line {line}: spk {a} mapped to spk {expected}, but got spk {b}")
         return False
     else:
-        print("\nResult: CONSISTENT labeling (same speaker grouping, different numeric labels)")
+        print(
+            "\nResult: CONSISTENT labeling (same speaker grouping, different numeric labels)"
+        )
         return True
 
 

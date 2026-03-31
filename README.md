@@ -68,6 +68,12 @@ To specify an output directory:
 uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/
 ```
 
+To run withoud PLDA and x-vector transformation fire:
+
+```bash
+uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/ --plda-file none --xvec-transform none
+```
+
 ## Running in VS Code / Zed
 
 Project contatins default.launch.json file that contains pre-configured tasks to run. Make a copy

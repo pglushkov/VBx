@@ -66,7 +66,7 @@ def run_vbhmm(
     threshold=-0.015,
     lda_dim=128,
     Fa=0.3,
-    Fb=17,
+    Fb=17.0,
     loopP=0.99,
     target_energy=1.0,
     init_smoothing=5.0,

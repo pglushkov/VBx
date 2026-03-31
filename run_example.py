@@ -8,8 +8,9 @@ import argparse
 import logging
 import os
 import tempfile
+from pathlib import Path
 
-from VBx.predict import extract_xvectors, load_model
+from VBx.predict import extract_xvectors_melbank, extract_xvectors_pcm, load_model
 from VBx.vbhmm import run_vbhmm
 
 logging.basicConfig(level=logging.INFO)
@@ -20,24 +21,27 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_WEIGHTS = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/nnet/final.onnx")
 _DEFAULT_TRANSFORM = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/transform.h5")
 _DEFAULT_PLDA = os.path.join(_HERE, "VBx/models/ResNet101_16kHz/plda")
+_PCM_HOP_LEN_SEC = 0.24  # 240 msec from original model
 
 
 def run_diarization(
-    wav_dir,
-    lab_dir,
-    out_dir=None,
-    weights=_DEFAULT_WEIGHTS,
-    backend="onnx",
-    xvec_transform=_DEFAULT_TRANSFORM,
-    plda_file=_DEFAULT_PLDA,
-    init="AHC+VB",
-    threshold=-0.015,
-    lda_dim=128,
-    Fa=0.3,
-    Fb=17,
-    loopP=0.99,
-    score=False,
-    ref_rttm_dir=None,
+    wav_dir: str | Path,
+    lab_dir: str | Path,
+    out_dir: str | Path | None = None,
+    weights: str | Path = _DEFAULT_WEIGHTS,
+    backend: str = "onnx",
+    xvec_transform: str | Path | None = _DEFAULT_TRANSFORM,
+    plda_file: str | Path | None = _DEFAULT_PLDA,
+    init: str = "AHC+VB",
+    threshold: float = -0.015,
+    lda_dim: int = 128,
+    Fa: float = 0.3,
+    Fb: float = 17.0,
+    loopP: float = 0.99,
+    score: bool = False,
+    ref_rttm_dir: str | Path | None = None,
+    use_pcm: bool = False,
+    input_samplerate: int = 16000,
 ):
     """Run the full diarization pipeline on all wav files in a directory.
 
@@ -83,7 +87,9 @@ def run_diarization(
     logger.info(f"Found {len(wav_files)} audio file(s)")
 
     # Load model once
-    model, label_name, input_name, device = load_model(weights, backend=backend)
+    model, label_name, input_name, device, input_shape = load_model(
+        weights, backend=backend
+    )
 
     for filename in wav_files:
         logger.info(f"Processing: {filename}")
@@ -92,18 +98,36 @@ def run_diarization(
         seg_file_name = os.path.join(out_dir, f"{filename}.seg")
 
         # Step 1: Extract x-vectors
-        extract_xvectors(
-            file_names=[filename],
-            wav_dir=wav_dir,
-            lab_dir=lab_dir,
-            out_ark_fn=ark_file_name,
-            out_seg_fn=seg_file_name,
-            model=model,
-            label_name=label_name,
-            input_name=input_name,
-            device=device,
-            backend=backend,
-        )
+        if use_pcm:
+            assert isinstance(input_shape, list) and len(input_shape) == 2
+            segment_len_samples = input_shape[1]
+            extract_xvectors_pcm(
+                file_names=[filename],
+                wav_dir=wav_dir,
+                lab_dir=lab_dir,
+                out_ark_fn=ark_file_name,
+                out_seg_fn=seg_file_name,
+                model=model,
+                label_name=label_name,
+                input_name=input_name,
+                seg_len_samples=segment_len_samples,
+                seg_jump_samples=int(_PCM_HOP_LEN_SEC * input_samplerate),
+                device=device,
+                backend=backend,
+            )
+        else:
+            extract_xvectors_melbank(
+                file_names=[filename],
+                wav_dir=wav_dir,
+                lab_dir=lab_dir,
+                out_ark_fn=ark_file_name,
+                out_seg_fn=seg_file_name,
+                model=model,
+                label_name=label_name,
+                input_name=input_name,
+                device=device,
+                backend=backend,
+            )
 
         # Step 2: VB-HMM clustering
         run_vbhmm(
@@ -145,7 +169,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=-0.015)
     parser.add_argument("--lda-dim", type=int, default=128)
     parser.add_argument("--Fa", type=float, default=0.3)
-    parser.add_argument("--Fb", type=float, default=17)
+    parser.add_argument("--Fb", type=float, default=17.0)
     parser.add_argument("--loopP", type=float, default=0.99)
     parser.add_argument(
         "--score",
@@ -155,8 +179,27 @@ def main():
     parser.add_argument(
         "--ref-rttm-dir", default=None, help="Reference RTTM directory (for scoring)"
     )
+    parser.add_argument(
+        "--use-pcm",
+        required=False,
+        default=False,
+        action="store_true",
+        help="set this flag to forward raw audio to the model",
+    )
+    parser.add_argument(
+        "--in-samplerate",
+        required=False,
+        default=16000,
+        type=int,
+        help="Samplerate of audio expected by the model when using raw PCMs",
+    )
 
     args = parser.parse_args()
+
+    xvec_transform_file = (
+        None if args.xvec_transform.lower() == "none" else args.xvec_transform
+    )
+    plda_file = None if args.plda_file.lower() == "none" else args.plda_file
 
     run_diarization(
         wav_dir=args.wav_dir,
@@ -164,8 +207,8 @@ def main():
         out_dir=args.out_dir,
         weights=args.weights,
         backend=args.backend,
-        xvec_transform=args.xvec_transform,
-        plda_file=args.plda_file,
+        xvec_transform=xvec_transform_file,
+        plda_file=plda_file,
         init=args.init,
         threshold=args.threshold,
         lda_dim=args.lda_dim,
@@ -174,6 +217,8 @@ def main():
         loopP=args.loopP,
         score=args.score,
         ref_rttm_dir=args.ref_rttm_dir,
+        use_pcm=args.use_pcm,
+        input_samplerate=args.in_samplerate,
     )
 
 
