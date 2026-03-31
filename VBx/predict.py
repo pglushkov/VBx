@@ -350,13 +350,23 @@ def extract_xvectors_pcm(
                             0, len(seg) - seg_len_samples + 1, seg_jump_samples
                         ):
                             chunk = seg[start : start + seg_len_samples]
+
+                            logging.debug(
+                                "=== Segment:{} of {}, len= {}".format(
+                                    segnum + 1,
+                                    len(labs),
+                                    labs[segnum, 1] - labs[segnum, 0],
+                                )
+                            )
+                            logging.debug(
+                                "=== running inference from {} to {}".format(
+                                    start, start + seg_len_samples
+                                )
+                            )
+
                             xvector = model.run(
                                 [label_name],
-                                {
-                                    input_name: chunk.astype(np.float32)[
-                                        np.newaxis, :
-                                    ]
-                                },
+                                {input_name: chunk.astype(np.float32)[np.newaxis, :]},
                             )[0].squeeze()
 
                             key = f"{fn}_{segnum:04}-{start:08}-{(start + seg_len_samples):08}"
@@ -376,9 +386,7 @@ def extract_xvectors_pcm(
                                 seg_file.write(
                                     f"{key} {fn} {seg_start} {seg_end}{os.linesep}"
                                 )
-                                kaldi_io.write_vec_flt(
-                                    ark_file, xvector, key=key
-                                )
+                                kaldi_io.write_vec_flt(ark_file, xvector, key=key)
 
 
 if __name__ == "__main__":

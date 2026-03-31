@@ -60,11 +60,11 @@ def VBx(
     G = -0.5 * (
         np.sum(X**2, axis=1, keepdims=True) + D * np.log(2 * np.pi)
     )  # per-frame constant term in (23)
-    # V = np.sqrt(Phi)  # between (5) and (6) # NO-PLDA
-    # rho = X * V  # (18) # NO-PLDA
-    rho = X
+    pseudo_phi = np.ones(D, dtype=np.float64) / D  # NO-PLDA
+    V = np.sqrt(pseudo_phi)  # between (5) and (6) # NO-PLDA
+    rho = X * V  # (18)
     Li = []
-    pseudo_phi = np.ones(D, dtype=np.float64) / D
+
     for ii in range(maxIters):
         # Do not start with estimating speaker models if those are provided
         # in the argument
