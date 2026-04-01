@@ -14,8 +14,7 @@ import onnxruntime
 import soundfile as sf
 import torch.backends
 
-from VBx.features import *
-from VBx.models.resnet import *
+from VBx import features
 
 torch.backends.cudnn.enabled = False
 

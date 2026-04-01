@@ -13,7 +13,9 @@ from pathlib import Path
 from VBx.predict import extract_xvectors_melbank, extract_xvectors_pcm, load_model
 from VBx.vbhmm import run_vbhmm
 
-logging.basicConfig(level=logging.DEBUG)
+log_level = os.environ.get("LOG_LEVEL", "INFO")
+print(f" === using log-level: {log_level}")
+logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
 
 # Default model paths (relative to this file)

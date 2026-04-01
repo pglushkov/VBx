@@ -74,6 +74,12 @@ To run withoud PLDA and x-vector transformation fire:
 uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/ --plda-file none --xvec-transform none
 ```
 
+To run without PLDA using model that extracts x-vectors from PCM data:
+
+```bash
+ uv run python run_example.py --wav-dir example/audios/16k --lab-dir example/vad --out-dir results/pcm_no_plda --plda-file none --xvec-transform none --use-pcm --weights /path/to/model.onnx --backend onnx
+```
+
 ## Running in VS Code / Zed
 
 Project contatins default.launch.json file that contains pre-configured tasks to run. Make a copy
