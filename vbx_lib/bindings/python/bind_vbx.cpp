@@ -4,6 +4,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "vbx/vbx.h"
+#include "vbx/clustering.h"
 
 namespace nb = nanobind;
 
@@ -67,6 +68,14 @@ fcluster_distance_py(
         labels->data(), 1, shape, owner);
 }
 
+template <typename Scalar>
+Scalar ahc_threshold_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> scores,
+                        int niters) {
+    return vbx::ahc_threshold<Scalar>(scores.data(),
+                                       static_cast<int>(scores.shape(0)),
+                                       niters);
+}
+
 NB_MODULE(vbx_native, m) {
     m.def("get_version", &vbx::get_version);
     m.def("cosine_similarity", &cosine_similarity_py<double>, nb::arg("xvecs"));
@@ -75,4 +84,8 @@ NB_MODULE(vbx_native, m) {
           nb::arg("distmat"), nb::arg("n"));
     m.def("fcluster_distance", &fcluster_distance_py,
           nb::arg("Z"), nb::arg("t"));
+    m.def("ahc_threshold", &ahc_threshold_py<double>,
+          nb::arg("scores"), nb::arg("niters") = 20);
+    m.def("ahc_threshold", &ahc_threshold_py<float>,
+          nb::arg("scores"), nb::arg("niters") = 20);
 }

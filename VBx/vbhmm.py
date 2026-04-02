@@ -56,6 +56,34 @@ def write_output(fp, file_name, out_labels, starts, ends):
         )
 
 
+def get_clusters_from_xvectors(
+    x_vecs: np.ndarray, threshold: float, use_cpp: bool = False
+):
+    if use_cpp:
+        import vbx_native
+
+        N = x_vecs.shape[0]
+        sim_condensed = -vbx_native.cosine_similarity(x_vecs)
+        thr = vbx_native.ahc_threshold(sim_condensed.ravel())
+
+        linkage = vbx_native.average_linkage(sim_condensed, N)
+        adjust = abs(linkage[:, 2].min())
+        linkage[:, 2] += adjust
+        labels1st = vbx_native.fcluster_distance(linkage, -(thr + threshold) + adjust)
+    else:
+        scr_mx = cos_similarity(x_vecs)  # result is matrix
+        thr, _ = twoGMMcalib_lin(scr_mx.ravel())
+        scr_mx = squareform(-scr_mx, checks=False)
+        lin_mat = fastcluster.linkage(scr_mx, method="average", preserve_input="False")
+        del scr_mx
+        adjust = abs(lin_mat[:, 2].min())
+        lin_mat[:, 2] += adjust
+        labels1st = (
+            fcluster(lin_mat, -(thr + threshold) + adjust, criterion="distance") - 1
+        )
+    return labels1st
+
+
 def run_vbhmm(
     xvec_ark_file,
     segments_file,
@@ -114,18 +142,7 @@ def run_vbhmm(
             raise ValueError("Wrong option for init.")
 
         if init.startswith("AHC"):
-            scr_mx = cos_similarity(x)  # result is matrix
-            thr, _ = twoGMMcalib_lin(scr_mx.ravel())
-            scr_mx = squareform(-scr_mx, checks=False)
-            lin_mat = fastcluster.linkage(
-                scr_mx, method="average", preserve_input="False"
-            )
-            del scr_mx
-            adjust = abs(lin_mat[:, 2].min())
-            lin_mat[:, 2] += adjust
-            labels1st = (
-                fcluster(lin_mat, -(thr + threshold) + adjust, criterion="distance") - 1
-            )
+            labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=False)
         if init.endswith("VB"):
             qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
             qinit[range(len(labels1st)), labels1st] = 1.0

@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <vector>
+
+#include <Eigen/Dense>
 
 #include "vbx/clustering.h"
 #include "fastcluster.h"
@@ -41,7 +44,58 @@ std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs) {
 }
 
 template <typename Scalar>
-CalibrationResultT<Scalar> two_gmm_calibrate(const Scalar*, int, int) { return {}; }
+Scalar ahc_threshold(const Scalar* scores, int n, int niters) {
+    using Vec = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
+    using Vec2 = Eigen::Matrix<Scalar, 2, 1>;
+    using Mat = Eigen::Matrix<Scalar, Eigen::Dynamic, 2>;
+
+    Eigen::Map<const Vec> s(scores, n);
+
+    Scalar mu = s.mean();
+    Scalar sd = std::sqrt((s.array() - mu).square().mean());
+    Vec2 weights(Scalar(0.5), Scalar(0.5));
+    Vec2 means(mu - sd, mu + sd);
+    Scalar var = sd * sd;
+
+    Mat lls(n, 2);
+    Scalar threshold = std::numeric_limits<Scalar>::infinity();
+
+    for (int iter = 0; iter < niters; ++iter) {
+        // E-step
+        for (int k = 0; k < 2; ++k) {
+            lls.col(k) = (std::log(weights(k)) - Scalar(0.5) * std::log(var)
+                          - Scalar(0.5) / var * (s.array() - means(k)).square())
+                             .matrix();
+        }
+
+        // Row-wise softmax -> gammas
+        Vec row_max = lls.rowwise().maxCoeff();
+        Mat gammas = (lls.colwise() - row_max).array().exp().matrix();
+        Vec row_sum = gammas.rowwise().sum();
+        gammas.col(0).array() /= row_sum.array();
+        gammas.col(1).array() /= row_sum.array();
+
+        // M-step
+        Vec2 cnts = gammas.colwise().sum();
+        weights = cnts / cnts.sum();
+        means(0) = s.dot(gammas.col(0)) / cnts(0);
+        means(1) = s.dot(gammas.col(1)) / cnts(1);
+        Vec2 m2(s.array().square().matrix().dot(gammas.col(0)) / cnts(0),
+                s.array().square().matrix().dot(gammas.col(1)) / cnts(1));
+        Vec2 var_per = m2 - means.array().square().matrix();
+        var = var_per.dot(weights);
+
+        // Threshold: equal-posterior crossing point
+        Vec2 log_w2_over_var = (weights.array().square() / var).log().matrix();
+        Vec2 m2_over_var = means.array().square().matrix() / var;
+        Vec2 m_over_var = means / var;
+        Vec2 pm(Scalar(1), Scalar(-1));
+        threshold = Scalar(-0.5) * (log_w2_over_var - m2_over_var).dot(pm)
+                    / m_over_var.dot(pm);
+    }
+
+    return threshold;
+}
 
 // Convert R hclust merge/height to scipy (n-1)x4 linkage matrix.
 // R convention: negative = leaf (1-based), positive = cluster step (1-based).
@@ -141,8 +195,8 @@ std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar>, const AhcParams&) { r
 
 template std::vector<float> cosine_similarity<float>(MatrixViewF);
 template std::vector<double> cosine_similarity<double>(MatrixViewD);
-template CalibrationResultF two_gmm_calibrate<float>(const float*, int, int);
-template CalibrationResultD two_gmm_calibrate<double>(const double*, int, int);
+template float ahc_threshold<float>(const float*, int, int);
+template double ahc_threshold<double>(const double*, int, int);
 template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);
 template std::vector<int> ahc_cluster<double>(CondensedMatrixViewD, const AhcParams&);
 

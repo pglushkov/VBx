@@ -4,6 +4,16 @@ project(vbx VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Eigen (header-only) ---
+include(FetchContent)
+FetchContent_Declare(eigen
+    URL https://github.com/eigen-mirror/eigen/archive/refs/tags/5.0.1.tar.gz
+)
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(eigen)
+
 # --- libvbx ---
 add_library(vbx
     src/linalg.cpp
@@ -17,6 +27,7 @@ target_include_directories(vbx PUBLIC
     include
     third_party/fastcluster
 )
+target_link_libraries(vbx PUBLIC Eigen3::Eigen)
 
 # --- vbx_cli ---
 add_executable(vbx_cli tools/vbx_cli.cpp)

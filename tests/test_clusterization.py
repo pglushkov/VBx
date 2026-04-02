@@ -5,6 +5,7 @@ from scipy.cluster.hierarchy import fcluster
 from scipy.spatial.distance import squareform
 
 from VBx.diarization_lib import cos_similarity
+from VBx.vbhmm import get_clusters_from_xvectors
 
 
 def _normalize_labels(labels):
@@ -82,8 +83,9 @@ def test_fcluster_distance_vs_scipy():
     for t in [0.2, 0.5, 1.0, 1.5, 2.0, 3.0]:
         labels_scipy = _normalize_labels(fcluster(Z.copy(), t, criterion="distance"))
         labels_cpp = _normalize_labels(vbx_native.fcluster_distance(Z, t))
-        assert np.array_equal(labels_scipy, labels_cpp), \
+        assert np.array_equal(labels_scipy, labels_cpp), (
             f"Partitions differ at threshold {t}: scipy={labels_scipy}, cpp={labels_cpp}"
+        )
 
 
 def test_fcluster_distance_label_order_differs():
@@ -99,11 +101,14 @@ def test_fcluster_distance_label_order_differs():
 
     # Raw labels differ: scipy visits smaller cluster index first (top-down),
     # C++ scans leaves left-to-right.
-    assert not np.array_equal(labels_scipy, labels_cpp), \
+    assert not np.array_equal(labels_scipy, labels_cpp), (
         "Expected different raw labels (if this fails, the test premise is wrong)"
+    )
 
     # But normalized labels match — same partition.
-    assert np.array_equal(_normalize_labels(labels_scipy), _normalize_labels(labels_cpp))
+    assert np.array_equal(
+        _normalize_labels(labels_scipy), _normalize_labels(labels_cpp)
+    )
 
 
 def test_fcluster_distance_all_one_cluster():
@@ -120,3 +125,17 @@ def test_fcluster_distance_all_singletons():
     Z = vbx_native.average_linkage(dist, 3)
     labels = np.array(vbx_native.fcluster_distance(Z, Z[0, 2] - 0.01))
     assert len(set(labels)) == 3
+
+
+def test_full_ahc():
+    rng = np.random.default_rng(42)
+    N, D = 100, 256
+    xvecs = rng.standard_normal((N, D))
+    distances_to_check = [0.0, 0.5, 2.0, 10.0]
+    for dist in distances_to_check:
+        clusters_scipy = get_clusters_from_xvectors(xvecs, dist)
+        clusters_cpp = get_clusters_from_xvectors(xvecs, dist)
+
+        assert np.allclose(clusters_scipy, clusters_cpp), (
+            f"Comparison failed with distance {dist}"
+        )

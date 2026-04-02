@@ -7,19 +7,6 @@
 namespace vbx {
 
 // ---------------------------------------------------------------------------
-// Two-Gaussian calibration result
-// ---------------------------------------------------------------------------
-
-template <typename Scalar>
-struct CalibrationResultT {
-    Scalar threshold;
-    std::vector<Scalar> calibrated;
-};
-
-using CalibrationResultF = CalibrationResultT<float>;
-using CalibrationResultD = CalibrationResultT<double>;
-
-// ---------------------------------------------------------------------------
 // AHC params
 // ---------------------------------------------------------------------------
 
@@ -38,11 +25,11 @@ struct AhcParams {
 template <typename Scalar>
 std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs);
 
-// Fit 2-component GMM with shared variance on scores,
-// return intersection threshold and calibrated log-odds scores.
+// Estimate AHC distance threshold by fitting a 2-component GMM
+// with shared variance to pairwise scores via EM.
+// Returns the equal-posterior crossing point.
 template <typename Scalar>
-CalibrationResultT<Scalar> two_gmm_calibrate(const Scalar* scores, int n,
-                                              int niters = 20);
+Scalar ahc_threshold(const Scalar* scores, int n, int niters = 20);
 
 // ---------------------------------------------------------------------------
 // Linkage result — scipy convention, (n-1) x 4 row-major
@@ -82,8 +69,8 @@ std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar> sim,
 
 extern template std::vector<float> cosine_similarity<float>(MatrixViewF);
 extern template std::vector<double> cosine_similarity<double>(MatrixViewD);
-extern template CalibrationResultF two_gmm_calibrate<float>(const float*, int, int);
-extern template CalibrationResultD two_gmm_calibrate<double>(const double*, int, int);
+extern template float ahc_threshold<float>(const float*, int, int);
+extern template double ahc_threshold<double>(const double*, int, int);
 extern template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);
 extern template std::vector<int> ahc_cluster<double>(CondensedMatrixViewD, const AhcParams&);
 
