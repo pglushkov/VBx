@@ -18,6 +18,16 @@ Reference:
 Full license text is in third_party/fastcluster/LICENSE.
 
 ================================================================================
+Eigen — C++ template library for linear algebra
+================================================================================
+
+Note:        Not vendored. Fetched at build time via CMake FetchContent.
+Authors:     Benoit Jacob, Gael Guennebaud, and contributors
+License:     MPL 2.0 (Mozilla Public License 2.0)
+Source:      https://eigen.tuxfamily.org
+             https://gitlab.com/libeigen/eigen
+
+================================================================================
 nanobind — Seamless operability between C++17 and Python
 ================================================================================
 
