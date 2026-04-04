@@ -38,8 +38,6 @@ using MatrixViewF        = MatrixViewT<float>;
 using MatrixViewD        = MatrixViewT<double>;
 using MutableMatrixViewF = MutableMatrixViewT<float>;
 using MutableMatrixViewD = MutableMatrixViewT<double>;
-using MatrixView         = MatrixViewD;
-using MutableMatrixView  = MutableMatrixViewD;
 
 // ---------------------------------------------------------------------------
 // MatrixT — owning, row-major
@@ -68,14 +66,10 @@ struct MatrixT {
     operator MutableMatrixViewT<Scalar>() {
         return {storage.data(), rows, cols, cols};
     }
-
-    Scalar*       data()       { return storage.data(); }
-    const Scalar* data() const { return storage.data(); }
 };
 
 using MatrixF = MatrixT<float>;
 using MatrixD = MatrixT<double>;
-using Matrix  = MatrixD;
 
 // ---------------------------------------------------------------------------
 // CondensedMatrixViewT — non-owning view over upper triangle (no diagonal)
@@ -96,15 +90,14 @@ inline int condensed_size(int n) { return n * (n - 1) / 2; }
 
 using CondensedMatrixViewF = CondensedMatrixViewT<float>;
 using CondensedMatrixViewD = CondensedMatrixViewT<double>;
-using CondensedMatrixView  = CondensedMatrixViewD;
 
 // ---------------------------------------------------------------------------
 // Segment
 // ---------------------------------------------------------------------------
 
 struct Segment {
-    double start = 0.0;  // seconds
-    double end   = 0.0;  // seconds
+    double start_sec = 0.0;  // seconds
+    double end_sec   = 0.0;  // seconds
 };
 
 // ---------------------------------------------------------------------------
@@ -112,8 +105,8 @@ struct Segment {
 // ---------------------------------------------------------------------------
 
 struct DiarSegment {
-    double start      = 0.0;
-    double end        = 0.0;
+    double start_sec      = 0.0;
+    double end_sec        = 0.0;
     int    speaker_id = 0;
 };
 
@@ -127,7 +120,6 @@ struct DiarResultT {
 
 using DiarResultF = DiarResultT<float>;
 using DiarResultD = DiarResultT<double>;
-using DiarResult  = DiarResultD;
 
 }  // namespace vbx
 
