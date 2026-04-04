@@ -34,7 +34,6 @@ def run_diarization(
     backend: str = "onnx",
     xvec_transform: str | Path | None = _DEFAULT_TRANSFORM,
     plda_file: str | Path | None = _DEFAULT_PLDA,
-    init: str = "AHC+VB",
     threshold: float = -0.015,
     lda_dim: int = 128,
     Fa: float = 0.3,
@@ -138,7 +137,6 @@ def run_diarization(
             xvec_transform=xvec_transform,
             plda_file=plda_file,
             out_rttm_dir=out_dir,
-            init=init,
             threshold=threshold,
             lda_dim=lda_dim,
             Fa=Fa,
@@ -167,7 +165,6 @@ def main():
     parser.add_argument("--backend", default="onnx", choices=["onnx", "pytorch"])
     parser.add_argument("--xvec-transform", default=_DEFAULT_TRANSFORM)
     parser.add_argument("--plda-file", default=_DEFAULT_PLDA)
-    parser.add_argument("--init", default="AHC+VB", choices=["AHC", "AHC+VB"])
     parser.add_argument("--threshold", type=float, default=-0.015)
     parser.add_argument("--lda-dim", type=int, default=128)
     parser.add_argument("--Fa", type=float, default=0.3)
@@ -211,7 +208,6 @@ def main():
         backend=args.backend,
         xvec_transform=xvec_transform_file,
         plda_file=plda_file,
-        init=args.init,
         threshold=args.threshold,
         lda_dim=args.lda_dim,
         Fa=args.Fa,

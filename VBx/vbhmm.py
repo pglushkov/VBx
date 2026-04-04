@@ -90,7 +90,6 @@ def run_vbhmm(
     xvec_transform,
     plda_file,
     out_rttm_dir,
-    init="AHC+VB",
     threshold=-0.015,
     lda_dim=128,
     Fa=0.3,
@@ -139,45 +138,42 @@ def run_vbhmm(
                     lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2
                 )
 
-        if not (init == "AHC" or init.endswith("VB")):
-            raise ValueError("Wrong option for init.")
+        # get initial clusters structure
+        labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=use_cpp)
+        qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
+        qinit[range(len(labels1st)), labels1st] = 1.0
+        qinit = softmax(qinit * init_smoothing, axis=1)
 
-        if init.startswith("AHC"):
-            labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=use_cpp)
-        if init.endswith("VB"):
-            qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
-            qinit[range(len(labels1st)), labels1st] = 1.0
-            qinit = softmax(qinit * init_smoothing, axis=1)
-            if plda_file:
-                plda_params = read_plda_params_from_kaldi_format(
-                    plda_file=plda_file, lda_dim=lda_dim
-                )
-                q, sp, L = VBx_plda(
-                    x,
-                    plda_params,
-                    pi=qinit.shape[1],
-                    gamma=qinit,
-                    maxIters=40,
-                    epsilon=1e-6,
-                    loopProb=loopP,
-                    Fa=Fa,
-                    Fb=Fb,
-                )
-            else:
-                q, sp, L = VBx(
-                    x,
-                    pi=qinit.shape[1],
-                    gamma=qinit,
-                    maxIters=40,
-                    epsilon=1e-6,
-                    loopProb=loopP,
-                    Fa=Fa,
-                    Fb=Fb,
-                )
+        if plda_file:
+            plda_params = read_plda_params_from_kaldi_format(
+                plda_file=plda_file, lda_dim=lda_dim
+            )
+            q, sp, L = VBx_plda(
+                x,
+                plda_params,
+                pi=qinit.shape[1],
+                gamma=qinit,
+                maxIters=40,
+                epsilon=1e-6,
+                loopProb=loopP,
+                Fa=Fa,
+                Fb=Fb,
+            )
+        else:
+            q, sp, L = VBx(
+                x,
+                pi=qinit.shape[1],
+                gamma=qinit,
+                maxIters=40,
+                epsilon=1e-6,
+                loopProb=loopP,
+                Fa=Fa,
+                Fb=Fb,
+            )
 
-            labels1st = np.argsort(-q, axis=1)[:, 0]
-            if q.shape[1] > 1:
-                labels2nd = np.argsort(-q, axis=1)[:, 1]
+        labels1st = np.argsort(-q, axis=1)[:, 0]
+        if q.shape[1] > 1:
+            labels2nd = np.argsort(-q, axis=1)[:, 1]
 
         assert np.all(segs_dict[file_name][0] == np.array(seg_names))
         start, end = segs_dict[file_name][1].T
@@ -199,13 +195,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--init",
-        required=True,
-        type=str,
-        choices=["AHC", "AHC+VB"],
-        help="AHC for using only AHC or AHC+VB for VB-HMM after AHC initilization",
-    )
     parser.add_argument(
         "--out-rttm-dir",
         required=True,
@@ -260,7 +249,6 @@ if __name__ == "__main__":
         xvec_transform=args.xvec_transform,
         plda_file=args.plda_file,
         out_rttm_dir=args.out_rttm_dir,
-        init=args.init,
         threshold=args.threshold,
         lda_dim=args.lda_dim,
         Fa=args.Fa,
