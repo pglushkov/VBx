@@ -99,6 +99,7 @@ def run_vbhmm(
     target_energy=1.0,
     init_smoothing=5.0,
     output_2nd=False,
+    use_cpp=False,
 ):
     """Run VB-HMM speaker diarization on x-vectors.
 
@@ -142,7 +143,7 @@ def run_vbhmm(
             raise ValueError("Wrong option for init.")
 
         if init.startswith("AHC"):
-            labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=False)
+            labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=use_cpp)
         if init.endswith("VB"):
             qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
             qinit[range(len(labels1st)), labels1st] = 1.0

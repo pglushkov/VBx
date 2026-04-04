@@ -27,6 +27,7 @@ target_include_directories(vbx PUBLIC
     include
     third_party/fastcluster
 )
+target_compile_options(vbx PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(vbx PUBLIC Eigen3::Eigen)
 
 # --- vbx_cli ---

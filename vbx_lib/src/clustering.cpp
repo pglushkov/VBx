@@ -103,9 +103,7 @@ Scalar ahc_threshold(const Scalar* scores, int n, int niters) {
 static LinkageResult r_to_scipy(const int* merge, const double* height,
                                 int n) {
     const int steps = n - 1;
-    LinkageResult lr;
-    lr.steps = steps;
-    lr.data.resize(steps * 4);
+    LinkageResult lr(steps);
 
     // Track cluster sizes: leaves at [0..n-1], merged clusters at [n..]
     std::vector<double> sizes(n, 1.0);
@@ -127,10 +125,11 @@ static LinkageResult r_to_scipy(const int* merge, const double* height,
         // scipy convention: idx1 < idx2
         if (s1 > s2) std::swap(s1, s2);
 
-        lr.data[i * 4 + 0] = s1;
-        lr.data[i * 4 + 1] = s2;
-        lr.data[i * 4 + 2] = height[i];
-        lr.data[i * 4 + 3] = sz;
+        double* row_ptr = lr.row(i);
+        row_ptr[0] = s1;
+        row_ptr[1] = s2;
+        row_ptr[2] = height[i];
+        row_ptr[3] = sz;
     }
     return lr;
 }
@@ -152,7 +151,7 @@ LinkageResult average_linkage(const double* distmat, int n) {
 }
 
 std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
-    const int n = Z.steps + 1;
+    const int n = Z.n_steps() + 1;
     // Union-find: parent[i] = parent of node i (leaves 0..n-1, clusters n..2n-2)
     std::vector<int> parent(2 * n - 1);
     std::iota(parent.begin(), parent.end(), 0);
@@ -166,7 +165,7 @@ std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
     };
 
     // Union all merge steps with height <= t
-    for (int i = 0; i < Z.steps; ++i) {
+    for (int i = 0; i < Z.n_steps(); ++i) {
         const double* row = Z.row(i);
         if (row[2] > t) break;  // monotonic heights — all remaining are > t
         int a = find(static_cast<int>(row[0]));

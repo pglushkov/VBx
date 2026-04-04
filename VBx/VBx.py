@@ -42,9 +42,9 @@ def VBx(
     alpha=None,
     invL=None,
 ):
-    # X = (x_vecs - plda_mu).dot(plda_tr.T)[:, :lda_dim] # NO-PLDA
     X = x_vecs
     D = X.shape[1]  # feature (e.g. x-vector) dimensionality
+    pseudo_phi = np.ones(D, dtype=np.float64) / D
 
     if type(pi) is int:
         pi = np.ones(pi) / pi
@@ -60,8 +60,8 @@ def VBx(
     G = -0.5 * (
         np.sum(X**2, axis=1, keepdims=True) + D * np.log(2 * np.pi)
     )  # per-frame constant term in (23)
-    pseudo_phi = np.ones(D, dtype=np.float64) / D  # NO-PLDA
-    V = np.sqrt(pseudo_phi)  # between (5) and (6) # NO-PLDA
+
+    V = np.sqrt(pseudo_phi)
     rho = X * V  # (18)
     Li = []
 
@@ -70,12 +70,10 @@ def VBx(
         # in the argument
         if ii > 0 or alpha is None or invL is None:
             invL = 1.0 / (
-                # 1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T * Phi # NO-PLDA
-                1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T
+                1 + Fa / Fb * gamma.sum(axis=0, keepdims=True).T * pseudo_phi
             )  # (17) for all speakers
             alpha = Fa / Fb * invL * gamma.T.dot(rho)  # (16) for all speakers
         log_p_ = Fa * (
-            # rho.dot(alpha.T) - 0.5 * (invL + alpha**2).dot(Phi) + G # NO-PLDA
             rho.dot(alpha.T) - 0.5 * (invL + alpha**2).dot(pseudo_phi) + G
         )  # (23) for all speakers
         tr = (

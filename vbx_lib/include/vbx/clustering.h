@@ -25,8 +25,8 @@ struct AhcParams {
 template <typename Scalar>
 std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs);
 
-// Estimate AHC distance threshold by fitting a 2-component GMM
-// with shared variance to pairwise scores via EM.
+// Estimate Agglomerative Hierachical Clustering distance threshold
+// by fitting a 2-component GMM with shared variance to pairwise scores via EM.
 // Returns the equal-posterior crossing point.
 template <typename Scalar>
 Scalar ahc_threshold(const Scalar* scores, int n, int niters = 20);
@@ -35,15 +35,22 @@ Scalar ahc_threshold(const Scalar* scores, int n, int niters = 20);
 // Linkage result — scipy convention, (n-1) x 4 row-major
 // ---------------------------------------------------------------------------
 
-struct LinkageResult {
+class LinkageResult {
     // (n-1) x 4 row-major: [idx1, idx2, height, size] per step.
     // Indices: leaves 0..n-1, merged clusters n, n+1, ...
     // idx1 < idx2 in each row.
-    std::vector<double> data;
-    int steps = 0;  // n - 1
+    std::vector<double> data_;
 
-    double* row(int i) { return data.data() + i * 4; }
-    const double* row(int i) const { return data.data() + i * 4; }
+public:
+    LinkageResult(int steps):data_(steps * 4, 0.0) {}
+
+    int n_steps() const { return static_cast<int>(data_.size()/4 ); }
+
+    double* row(int i) { return data_.data() + i * 4; }
+    const double* row(int i) const { return data_.data() + i * 4; }
+
+    double* data() { return data_.data(); }
+    const double* data() const { return data_.data(); }
 };
 
 // Average linkage on condensed distance matrix (N*(N-1)/2 elements).

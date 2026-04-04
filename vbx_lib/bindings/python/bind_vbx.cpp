@@ -35,13 +35,13 @@ average_linkage_py(
     // C++ does R-to-scipy conversion internally
     auto* lr = new vbx::LinkageResult(vbx::average_linkage(distmat.data(), n));
 
-    size_t shape[2] = {static_cast<size_t>(lr->steps), 4};
+    size_t shape[2] = {static_cast<size_t>(lr->n_steps()), 4};
     nb::capsule owner(lr, [](void* p) noexcept {
         delete static_cast<vbx::LinkageResult*>(p);
     });
 
     return nb::ndarray<nb::numpy, double, nb::ndim<2>>(
-        lr->data.data(), 2, shape, owner);
+        lr->data(), 2, shape, owner);
 }
 
 // Wrap fcluster_distance: linkage (n-1)x4 matrix + threshold -> 1D label array
@@ -53,9 +53,8 @@ fcluster_distance_py(
     const int n = steps + 1;
 
     // Build LinkageResult from numpy array
-    vbx::LinkageResult lr;
-    lr.steps = steps;
-    lr.data.assign(Z_arr.data(), Z_arr.data() + steps * 4);
+    vbx::LinkageResult lr(steps);
+    std::copy(Z_arr.data(), Z_arr.data() + steps * 4, lr.data());
 
     auto* labels = new std::vector<int>(vbx::fcluster_distance(lr, t));
     size_t shape[1] = {static_cast<size_t>(n)};

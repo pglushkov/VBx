@@ -48,6 +48,10 @@ cmake --build build
 ```
 
 This builds `libvbx.a` and the `vbx_cli` executable. The Python bindings are skipped (controlled by the `VBX_BUILD_PYTHON_BINDINGS` CMake option, which defaults to OFF).
+To enable it use:
+```bash
+cmake -B build -S . -DVBX_BUILD_PYTHON_BINDINGS=ON
+```
 
 ## Quick start
 
