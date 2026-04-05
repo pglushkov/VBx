@@ -53,6 +53,19 @@ To enable it use:
 cmake -B build -S . -DVBX_BUILD_PYTHON_BINDINGS=ON
 ```
 
+### Benchmarks
+
+To build and run the C++ benchmarks (using [Google Benchmark](https://github.com/google/benchmark)):
+
+```bash
+cd vbx_lib
+cmake -B build -S . -DBUILD_BENCHMARKS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/benchmarks/run_benchmarks
+```
+
+Google Benchmark is fetched automatically via CMake FetchContent if not found on the system.
+
 ## Quick start
 
 Run diarization on the included example audio:

@@ -40,5 +40,11 @@
     "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -o CMakeFiles/vbx_cli.dir/tools/vbx_cli.cpp.o -c ./vbx_lib/tools/vbx_cli.cpp",
     "file": "./vbx_lib/tools/vbx_cli.cpp",
     "output": "CMakeFiles/vbx_cli.dir/tools/vbx_cli.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -I./vbx_lib/build/_deps/benchmark-src/include -std=gnu++17  -o CMakeFiles/run_benchmarks.dir/benchmarks/benchmarks.cpp.o -c ./vbx_lib/benchmarks/benchmarks.cpp",
+    "file": "./vbx_lib/benchmarks/benchmarks.cpp",
+    "output": "CMakeFiles/run_benchmarks.dir/benchmarks/benchmarks.cpp.o"
   }
 ]

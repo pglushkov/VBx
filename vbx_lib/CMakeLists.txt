@@ -6,6 +6,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Build benchmarks using Google Benchmark ---
+option(BUILD_BENCHMARKS "Build benchmarks" OFF)
+# --- Python bindings (nanobind) ---
+option(VBX_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
+
 # --- Eigen (header-only) ---
 include(FetchContent)
 FetchContent_Declare(eigen
@@ -36,23 +41,37 @@ target_link_libraries(vbx PUBLIC Eigen3::Eigen)
 add_executable(vbx_cli tools/vbx_cli.cpp)
 target_link_libraries(vbx_cli PRIVATE vbx)
 
-# --- Python bindings (nanobind) ---
-option(VBX_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
-
 if(VBX_BUILD_PYTHON_BINDINGS)
-    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-    find_package(nanobind CONFIG QUIET)
-    if(NOT nanobind_FOUND)
-        include(FetchContent)
-        FetchContent_Declare(nanobind
+  find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+  find_package(nanobind CONFIG QUIET)
+  if(NOT nanobind_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(nanobind
             GIT_REPOSITORY https://github.com/wjakob/nanobind
             GIT_TAG        v2.4.0
         )
-        FetchContent_MakeAvailable(nanobind)
-    endif()
-    nanobind_add_module(vbx_native STABLE_ABI NB_STATIC
+    FetchContent_MakeAvailable(nanobind)
+  endif()
+  nanobind_add_module(vbx_native STABLE_ABI NB_STATIC
         bindings/python/bind_vbx.cpp
     )
-    target_link_libraries(vbx_native PRIVATE vbx)
-    install(TARGETS vbx_native LIBRARY DESTINATION .)
+  target_link_libraries(vbx_native PRIVATE vbx)
+  install(TARGETS vbx_native LIBRARY DESTINATION .)
+endif()
+
+if(BUILD_BENCHMARKS)
+  find_package(benchmark QUIET)
+  if(NOT benchmark_FOUND)
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.8.3
+    )
+
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_MakeAvailable(benchmark)
+  endif()
+  add_subdirectory(benchmarks)
 endif()
