@@ -17,7 +17,6 @@ struct VbxParams {
     AhcParams     ahc     = {};
     VbhmmParams   vbhmm   = {};
     ScoringMode   scoring = ScoringMode::kCosine;
-    int           lda_dim       = 128;
     double        target_energy = 1.0;
     bool          run_vbhmm     = true;
 };
@@ -26,8 +25,8 @@ template <typename Scalar>
 DiarResultT<Scalar> diarize(MatrixViewT<Scalar> xvecs,
                              const Segment* segments,
                              int num_segments,
-                             const std::optional<PldaModelT<Scalar>>& plda,
-                             const VbxParams& params = {});
+                             const VbxParams& params = {},
+                             const std::optional<PldaModelT<Scalar>>& plda = std::nullopt);
 
 template <typename Scalar>
 std::vector<int> cluster(MatrixViewT<Scalar> xvecs,

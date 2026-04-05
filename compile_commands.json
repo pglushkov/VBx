@@ -1,0 +1,44 @@
+[
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/src/linalg.cpp.o -c ./vbx_lib/src/linalg.cpp",
+    "file": "./vbx_lib/src/linalg.cpp",
+    "output": "CMakeFiles/vbx.dir/src/linalg.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/src/clustering.cpp.o -c ./vbx_lib/src/clustering.cpp",
+    "file": "./vbx_lib/src/clustering.cpp",
+    "output": "CMakeFiles/vbx.dir/src/clustering.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/src/scoring.cpp.o -c ./vbx_lib/src/scoring.cpp",
+    "file": "./vbx_lib/src/scoring.cpp",
+    "output": "CMakeFiles/vbx.dir/src/scoring.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/src/vbhmm.cpp.o -c ./vbx_lib/src/vbhmm.cpp",
+    "file": "./vbx_lib/src/vbhmm.cpp",
+    "output": "CMakeFiles/vbx.dir/src/vbhmm.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/src/vbx.cpp.o -c ./vbx_lib/src/vbx.cpp",
+    "file": "./vbx_lib/src/vbx.cpp",
+    "output": "CMakeFiles/vbx.dir/src/vbx.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -Wall -Wextra -Wpedantic -o CMakeFiles/vbx.dir/third_party/fastcluster/fastcluster.cpp.o -c ./vbx_lib/third_party/fastcluster/fastcluster.cpp",
+    "file": "./vbx_lib/third_party/fastcluster/fastcluster.cpp",
+    "output": "CMakeFiles/vbx.dir/third_party/fastcluster/fastcluster.cpp.o"
+  },
+  {
+    "directory": ".",
+    "command": "/usr/bin/c++  -I./vbx_lib/include -I./vbx_lib/third_party/fastcluster -I./vbx_lib/build/_deps/eigen-src -std=gnu++17  -o CMakeFiles/vbx_cli.dir/tools/vbx_cli.cpp.o -c ./vbx_lib/tools/vbx_cli.cpp",
+    "file": "./vbx_lib/tools/vbx_cli.cpp",
+    "output": "CMakeFiles/vbx_cli.dir/tools/vbx_cli.cpp.o"
+  }
+]

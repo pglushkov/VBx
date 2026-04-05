@@ -51,6 +51,11 @@ VbhmmResultT<Scalar> vbhmm(MatrixViewT<Scalar> log_likelihoods,
                             MatrixViewT<Scalar> gamma_init,
                             const VbhmmParams& params = {});
 
+extern template ForwardBackwardResultF forward_backward<float>(MatrixViewF, MatrixViewF, const float*, int);
+extern template ForwardBackwardResultD forward_backward<double>(MatrixViewD, MatrixViewD, const double*, int);
+extern template VbhmmResultF vbhmm<float>(MatrixViewF, MatrixViewF, const VbhmmParams&);
+extern template VbhmmResultD vbhmm<double>(MatrixViewD, MatrixViewD, const VbhmmParams&);
+
 }  // namespace vbx
 
 #endif  // VBX_VBHMM_H_

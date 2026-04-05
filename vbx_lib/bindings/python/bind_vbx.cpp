@@ -1,3 +1,9 @@
+// NOTE: unforunately failed to find a clean way to use scikit_build_core
+// and have code of nanobind package being hosted in the project.
+// scikit_build_core will download appropriate version of nanobind and
+// compile/link against it during Python package building or when
+// cmake with VBX_BUILD_PYTHON_BINDINGS=ON is being called
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>

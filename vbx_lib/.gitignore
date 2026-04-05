@@ -3,6 +3,7 @@ build/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
+.cache/
 
 # Compiled objects
 *.o
