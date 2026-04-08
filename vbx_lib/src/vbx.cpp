@@ -20,11 +20,11 @@ std::vector<int> cluster(MatrixViewT<Scalar>, const AhcParams&)
     return {};
 }
 
-template <typename Scalar>
-VbhmmResultT<Scalar> refine_vbhmm(MatrixViewT<Scalar>, const std::vector<int>&,
-                                    const VbhmmParams&)
-{
-    return {};
-}
+// template <typename Scalar>
+// VbhmmResultT<Scalar> refine_vbhmm(MatrixViewT<Scalar>, const std::vector<int>&,
+//                                     const VbhmmParams&)
+// {
+//     return {};
+// }
 
 }  // namespace vbx

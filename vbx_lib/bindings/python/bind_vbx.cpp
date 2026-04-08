@@ -14,23 +14,30 @@
 
 namespace nb = nanobind;
 
-// Wrap cosine_similarity: numpy 2D array -> numpy 1D condensed array
+// Wrap cosine_similarity: numpy 2D array -> numpy 1D condensed or 2D full matrix
 template <typename Scalar>
-nb::ndarray<nb::numpy, Scalar, nb::ndim<1>>
-cosine_similarity_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs) {
+nb::object
+cosine_similarity_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs,
+                     bool condense_result) {
     const int n = static_cast<int>(xvecs.shape(0));
     const int d = static_cast<int>(xvecs.shape(1));
     vbx::MatrixViewT<Scalar> view{xvecs.data(), n, d, d};
 
-    auto result = new std::vector<Scalar>(vbx::cosine_similarity(view));
-    size_t shape[1] = {result->size()};
+    auto result = new std::vector<Scalar>(vbx::cosine_similarity(view, condense_result));
 
     nb::capsule owner(result, [](void* p) noexcept {
         delete static_cast<std::vector<Scalar>*>(p);
     });
 
-    return nb::ndarray<nb::numpy, Scalar, nb::ndim<1>>(
-        result->data(), 1, shape, owner);
+    if (condense_result) {
+        size_t shape[1] = {result->size()};
+        return nb::cast(nb::ndarray<nb::numpy, Scalar, nb::ndim<1>>(
+            result->data(), 1, shape, owner));
+    } else {
+        size_t shape[2] = {static_cast<size_t>(n), static_cast<size_t>(n)};
+        return nb::cast(nb::ndarray<nb::numpy, Scalar, nb::ndim<2>>(
+            result->data(), 2, shape, owner));
+    }
 }
 
 // Wrap average_linkage: condensed distances -> scipy-convention (n-1)x4 matrix
@@ -83,8 +90,10 @@ Scalar ahc_threshold_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> scores
 
 NB_MODULE(vbx_native, m) {
     m.def("get_version", &vbx::get_version);
-    m.def("cosine_similarity", &cosine_similarity_py<double>, nb::arg("xvecs"));
-    m.def("cosine_similarity", &cosine_similarity_py<float>, nb::arg("xvecs"));
+    m.def("cosine_similarity", &cosine_similarity_py<double>,
+          nb::arg("xvecs"), nb::arg("condense_result") = true);
+    m.def("cosine_similarity", &cosine_similarity_py<float>,
+          nb::arg("xvecs"), nb::arg("condense_result") = true);
     m.def("average_linkage", &average_linkage_py,
           nb::arg("distmat"), nb::arg("n"));
     m.def("fcluster_distance", &fcluster_distance_py,

@@ -32,10 +32,10 @@ template <typename Scalar>
 std::vector<int> cluster(MatrixViewT<Scalar> xvecs,
                           const AhcParams& params = {});
 
-template <typename Scalar>
-VbhmmResultT<Scalar> refine_vbhmm(MatrixViewT<Scalar> log_likelihoods,
-                                    const std::vector<int>& initial_labels,
-                                    const VbhmmParams& params = {});
+// template <typename Scalar>
+// VbhmmResultT<Scalar> refine_vbhmm(MatrixViewT<Scalar> log_likelihoods,
+//                                     const std::vector<int>& initial_labels,
+//                                     const VbhmmParams& params = {});
 
 }  // namespace vbx
 

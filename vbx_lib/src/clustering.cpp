@@ -12,7 +12,8 @@
 namespace vbx {
 
 template <typename Scalar>
-std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs) {
+std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs,
+                                      bool condense_result) {
     const int n = xvecs.rows;
     const int d = xvecs.cols;
 
@@ -27,20 +28,39 @@ std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs) {
         norms[i] = std::sqrt(sum);
     }
 
-    // Compute condensed upper triangle: for each (i, j) where i < j
-    std::vector<Scalar> result(condensed_size(n));
-    int idx = 0;
-    for (int i = 0; i < n; ++i) {
-        for (int j = i + 1; j < n; ++j) {
-            Scalar dot = 0;
-            for (int k = 0; k < d; ++k) {
-                dot += xvecs(i, k) * xvecs(j, k);
+    if (condense_result) {
+        // Condensed upper triangle: N*(N-1)/2 elements
+        std::vector<Scalar> result(condensed_size(n));
+        int idx = 0;
+        for (int i = 0; i < n; ++i) {
+            for (int j = i + 1; j < n; ++j) {
+                Scalar dot = 0;
+                for (int k = 0; k < d; ++k) {
+                    dot += xvecs(i, k) * xvecs(j, k);
+                }
+                Scalar denom = norms[i] * norms[j];
+                result[idx++] = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
             }
-            Scalar denom = norms[i] * norms[j];
-            result[idx++] = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
         }
+        return result;
+    } else {
+        // Full NxN symmetric matrix
+        std::vector<Scalar> result(n * n, Scalar{0});
+        for (int i = 0; i < n; ++i) {
+            result[i * n + i] = Scalar{1};
+            for (int j = i + 1; j < n; ++j) {
+                Scalar dot = 0;
+                for (int k = 0; k < d; ++k) {
+                    dot += xvecs(i, k) * xvecs(j, k);
+                }
+                Scalar denom = norms[i] * norms[j];
+                Scalar sim = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
+                result[i * n + j] = sim;
+                result[j * n + i] = sim;
+            }
+        }
+        return result;
     }
-    return result;
 }
 
 template <typename Scalar>
@@ -192,8 +212,8 @@ std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
 template <typename Scalar>
 std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar>, const AhcParams&) { return {}; }
 
-template std::vector<float> cosine_similarity<float>(MatrixViewF);
-template std::vector<double> cosine_similarity<double>(MatrixViewD);
+template std::vector<float> cosine_similarity<float>(MatrixViewF, bool);
+template std::vector<double> cosine_similarity<double>(MatrixViewD, bool);
 template float ahc_threshold<float>(const float*, int, int);
 template double ahc_threshold<double>(const double*, int, int);
 template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);

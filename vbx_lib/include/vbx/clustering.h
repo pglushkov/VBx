@@ -19,11 +19,13 @@ struct AhcParams {
 // Functions
 // ---------------------------------------------------------------------------
 
-// Compute condensed upper-triangular cosine similarities (no diagonal).
-// Returns N*(N-1)/2 elements in row-major upper triangle order
-// (same layout as scipy.spatial.distance.squareform).
+// Compute cosine similarities between rows of xvecs.
+// If condense_result is true (default), returns N*(N-1)/2 elements in
+// row-major upper triangle order (same layout as scipy.spatial.distance.squareform).
+// If false, returns a full NxN symmetric matrix in row-major order.
 template <typename Scalar>
-std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs);
+std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs,
+                                      bool condense_result = true);
 
 // Estimate Agglomerative Hierachical Clustering distance threshold
 // by fitting a 2-component GMM with shared variance to pairwise scores via EM.
@@ -74,8 +76,8 @@ std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar> sim,
 // Explicit instantiations (defined in clustering.cpp)
 // ---------------------------------------------------------------------------
 
-extern template std::vector<float> cosine_similarity<float>(MatrixViewF);
-extern template std::vector<double> cosine_similarity<double>(MatrixViewD);
+extern template std::vector<float> cosine_similarity<float>(MatrixViewF, bool);
+extern template std::vector<double> cosine_similarity<double>(MatrixViewD, bool);
 extern template float ahc_threshold<float>(const float*, int, int);
 extern template double ahc_threshold<double>(const double*, int, int);
 extern template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);

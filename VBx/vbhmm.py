@@ -27,6 +27,7 @@
 # Computer Speech & Language, 2022
 
 import itertools
+import logging
 import os
 
 import fastcluster
@@ -47,6 +48,11 @@ from .diarization_lib import (
 from .kaldi_utils import read_plda_params_from_kaldi_format
 from .VBx import VBx, VBx_plda
 
+log_level = os.environ.get("LOG_LEVEL", "INFO")
+print(f" === using log-level: {log_level}")
+logging.basicConfig(level=log_level)
+logger = logging.getLogger(__name__)
+
 
 def write_output(fp, file_name, out_labels, starts, ends):
     for label, seg_start, seg_end in zip(out_labels, starts, ends):
@@ -63,13 +69,15 @@ def get_clusters_from_xvectors(
         import vbx_native
 
         N = x_vecs.shape[0]
-        sim_condensed = -vbx_native.cosine_similarity(x_vecs)
-        thr = vbx_native.ahc_threshold(sim_condensed.ravel())
-
+        sim_matrix = vbx_native.cosine_similarity(x_vecs, condense_result=False)
+        thr = vbx_native.ahc_threshold(sim_matrix.ravel())
+        sim_condensed = squareform(-sim_matrix, checks=False)
         linkage = vbx_native.average_linkage(sim_condensed, N)
         adjust = abs(linkage[:, 2].min())
         linkage[:, 2] += adjust
-        labels1st = vbx_native.fcluster_distance(linkage, -(thr + threshold) + adjust)
+        labels1st = (
+            vbx_native.fcluster_distance(linkage, -(thr + threshold) + adjust) - 1
+        )
     else:
         scr_mx = cos_similarity(x_vecs)  # result is matrix
         thr, _ = twoGMMcalib_lin(scr_mx.ravel())

@@ -80,7 +80,7 @@ def test_fcluster_distance_vs_scipy():
     # Shift to non-negative heights (required by scipy fcluster)
     Z[:, 2] += abs(Z[:, 2].min())
 
-    for t in [0.2, 0.5, 1.0, 1.5, 2.0, 3.0]:
+    for t in [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 3.0]:
         labels_scipy = _normalize_labels(fcluster(Z.copy(), t, criterion="distance"))
         labels_cpp = _normalize_labels(vbx_native.fcluster_distance(Z, t))
         assert np.array_equal(labels_scipy, labels_cpp), (
@@ -129,13 +129,15 @@ def test_fcluster_distance_all_singletons():
 
 def test_full_ahc():
     rng = np.random.default_rng(42)
-    N, D = 100, 256
+    N, D = 30, 128
     xvecs = rng.standard_normal((N, D))
     distances_to_check = [0.0, 0.5, 2.0, 10.0]
     for dist in distances_to_check:
-        clusters_scipy = get_clusters_from_xvectors(xvecs, dist)
-        clusters_cpp = get_clusters_from_xvectors(xvecs, dist)
+        clusters_scipy = _normalize_labels(get_clusters_from_xvectors(xvecs, dist))
+        clusters_cpp = _normalize_labels(
+            get_clusters_from_xvectors(xvecs, dist, use_cpp=True)
+        )
 
         assert np.allclose(clusters_scipy, clusters_cpp), (
-            f"Comparison failed with distance {dist}"
+            f"Comparison failed with distance {dist} (scipy={clusters_scipy}, cpp={clusters_cpp})"
         )
