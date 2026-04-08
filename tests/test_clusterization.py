@@ -12,10 +12,10 @@ def _normalize_labels(labels):
     """Remap labels so first occurrence of each label gets 1, next new label gets 2, etc."""
     mapping = {}
     out = []
-    for l in labels:
-        if l not in mapping:
-            mapping[l] = len(mapping) + 1
-        out.append(mapping[l])
+    for lab in labels:
+        if lab not in mapping:
+            mapping[lab] = len(mapping) + 1
+        out.append(mapping[lab])
     return np.array(out)
 
 
