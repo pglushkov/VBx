@@ -3,7 +3,6 @@
 
 #include <optional>
 #include <string>
-#include <vector>
 #include "vbx/types.h"
 #include "vbx/clustering.h"
 #include "vbx/scoring.h"
@@ -28,14 +27,16 @@ DiarResultT<Scalar> diarize(MatrixViewT<Scalar> xvecs,
                              const VbxParams& params = {},
                              const std::optional<PldaModelT<Scalar>>& plda = std::nullopt);
 
-template <typename Scalar>
-std::vector<int> cluster(MatrixViewT<Scalar> xvecs,
-                          const AhcParams& params = {});
-
-// template <typename Scalar>
-// VbhmmResultT<Scalar> refine_vbhmm(MatrixViewT<Scalar> log_likelihoods,
-//                                     const std::vector<int>& initial_labels,
-//                                     const VbhmmParams& params = {});
+extern template DiarResultF diarize<float>(MatrixViewF,
+                                            const Segment*,
+                                            int,
+                                            const VbxParams&,
+                                            const std::optional<PldaModelF>&);
+extern template DiarResultD diarize<double>(MatrixViewD,
+                                             const Segment*,
+                                             int,
+                                             const VbxParams&,
+                                             const std::optional<PldaModelD>&);
 
 }  // namespace vbx
 
