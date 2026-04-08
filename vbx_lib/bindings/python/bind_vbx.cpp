@@ -88,6 +88,27 @@ Scalar ahc_threshold_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> scores
                                        niters);
 }
 
+template <typename Scalar>
+nb::ndarray<nb::numpy, int, nb::ndim<1>>
+ahc_cluster_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs,
+               double threshold) {
+    const int n = static_cast<int>(xvecs.shape(0));
+    const int d = static_cast<int>(xvecs.shape(1));
+    vbx::MatrixViewT<Scalar> view{xvecs.data(), n, d, d};
+    vbx::AhcParams params;
+    params.threshold = threshold;
+
+    auto* labels = new std::vector<int>(vbx::ahc_cluster(view, params));
+    size_t shape[1] = {static_cast<size_t>(n)};
+
+    nb::capsule owner(labels, [](void* p) noexcept {
+        delete static_cast<std::vector<int>*>(p);
+    });
+
+    return nb::ndarray<nb::numpy, int, nb::ndim<1>>(
+        labels->data(), 1, shape, owner);
+}
+
 NB_MODULE(vbx_native, m) {
     m.def("get_version", &vbx::get_version);
     m.def("cosine_similarity", &cosine_similarity_py<double>,
@@ -102,4 +123,8 @@ NB_MODULE(vbx_native, m) {
           nb::arg("scores"), nb::arg("niters") = 20);
     m.def("ahc_threshold", &ahc_threshold_py<float>,
           nb::arg("scores"), nb::arg("niters") = 20);
+    m.def("ahc_cluster", &ahc_cluster_py<double>,
+          nb::arg("xvecs"), nb::arg("threshold") = -0.015);
+    m.def("ahc_cluster", &ahc_cluster_py<float>,
+          nb::arg("xvecs"), nb::arg("threshold") = -0.015);
 }

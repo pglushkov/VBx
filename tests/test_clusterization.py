@@ -127,7 +127,7 @@ def test_fcluster_distance_all_singletons():
     assert len(set(labels)) == 3
 
 
-def test_full_ahc():
+def test_python_ahc_end_to_end():
     rng = np.random.default_rng(42)
     N, D = 30, 128
     xvecs = rng.standard_normal((N, D))
@@ -140,4 +140,25 @@ def test_full_ahc():
 
         assert np.allclose(clusters_scipy, clusters_cpp), (
             f"Comparison failed with distance {dist} (scipy={clusters_scipy}, cpp={clusters_cpp})"
+        )
+
+
+def test_cpp_ahc_cluster_end_to_end():
+    """Compare pure C++ ahc_cluster against Python get_clusters_from_xvectors."""
+    rng = np.random.default_rng(42)
+    N, D = 30, 128
+    xvecs = rng.standard_normal((N, D))
+
+    for threshold in [-0.015, 0.0, 0.5, 2.0, 10.0]:
+        # Python reference
+        labels_py = _normalize_labels(get_clusters_from_xvectors(xvecs, threshold))
+
+        # Pure C++ end-to-end: xvecs -> ahc_cluster
+        labels_cpp = _normalize_labels(
+            vbx_native.ahc_cluster(xvecs, threshold=threshold)
+        )
+
+        assert np.array_equal(labels_py, labels_cpp), (
+            f"ahc_cluster mismatch at threshold={threshold}: "
+            f"py={labels_py}, cpp={labels_cpp}"
         )

@@ -12,6 +12,22 @@
 namespace vbx {
 
 template <typename Scalar>
+std::vector<Scalar> condensed_to_full(const Scalar* condensed, int n,
+                                      Scalar diag_val) {
+    std::vector<Scalar> full(n * n);
+    int idx = 0;
+    for (int i = 0; i < n; ++i) {
+        full[i * n + i] = diag_val;
+        for (int j = i + 1; j < n; ++j) {
+            full[i * n + j] = condensed[idx];
+            full[j * n + i] = condensed[idx];
+            ++idx;
+        }
+    }
+    return full;
+}
+
+template <typename Scalar>
 std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs,
                                       bool condense_result) {
     const int n = xvecs.rows;
@@ -28,39 +44,24 @@ std::vector<Scalar> cosine_similarity(MatrixViewT<Scalar> xvecs,
         norms[i] = std::sqrt(sum);
     }
 
-    if (condense_result) {
-        // Condensed upper triangle: N*(N-1)/2 elements
-        std::vector<Scalar> result(condensed_size(n));
-        int idx = 0;
-        for (int i = 0; i < n; ++i) {
-            for (int j = i + 1; j < n; ++j) {
-                Scalar dot = 0;
-                for (int k = 0; k < d; ++k) {
-                    dot += xvecs(i, k) * xvecs(j, k);
-                }
-                Scalar denom = norms[i] * norms[j];
-                result[idx++] = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
+    // Always compute condensed upper triangle
+    std::vector<Scalar> condensed(condensed_size(n));
+    int idx = 0;
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            Scalar dot = 0;
+            for (int k = 0; k < d; ++k) {
+                dot += xvecs(i, k) * xvecs(j, k);
             }
+            Scalar denom = norms[i] * norms[j];
+            condensed[idx++] = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
         }
-        return result;
-    } else {
-        // Full NxN symmetric matrix
-        std::vector<Scalar> result(n * n, Scalar{0});
-        for (int i = 0; i < n; ++i) {
-            result[i * n + i] = Scalar{1};
-            for (int j = i + 1; j < n; ++j) {
-                Scalar dot = 0;
-                for (int k = 0; k < d; ++k) {
-                    dot += xvecs(i, k) * xvecs(j, k);
-                }
-                Scalar denom = norms[i] * norms[j];
-                Scalar sim = (denom > Scalar{1e-32}) ? dot / denom : Scalar{0};
-                result[i * n + j] = sim;
-                result[j * n + i] = sim;
-            }
-        }
-        return result;
     }
+
+    if (condense_result) {
+        return condensed;
+    }
+    return condensed_to_full(condensed.data(), n, Scalar{1});
 }
 
 template <typename Scalar>
@@ -210,13 +211,52 @@ std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
 }
 
 template <typename Scalar>
-std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar>, const AhcParams&) { return {}; }
+std::vector<int> ahc_cluster(MatrixViewT<Scalar> xvecs,
+                             const AhcParams& params) {
+    const int n = xvecs.rows;
 
+    // Compute condensed cosine similarity
+    auto sim = cosine_similarity(xvecs, /*condense_result=*/true);
+
+    // Expand to full NxN for threshold estimation (preserves statistical distribution)
+    auto full = condensed_to_full(sim.data(), n, Scalar{1});
+    Scalar thr = ahc_threshold(full.data(), n * n);
+
+    // Build condensed distance matrix: negate similarities
+    std::vector<double> dist(condensed_size(n));
+    for (int i = 0; i < condensed_size(n); ++i) {
+        dist[i] = static_cast<double>(-sim[i]);
+    }
+
+    // Average linkage
+    LinkageResult linkage = average_linkage_inplace(dist.data(), n);
+
+    // Shift heights so minimum is 0 (matching Python: adjust = abs(min))
+    double min_height = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < linkage.n_steps(); ++i) {
+        min_height = std::min(min_height, linkage.row(i)[2]);
+    }
+    double adjust = std::abs(min_height);
+    for (int i = 0; i < linkage.n_steps(); ++i) {
+        linkage.row(i)[2] += adjust;
+    }
+
+    // Cut at threshold: -(thr + params.threshold) + adjust
+    double cut = -(static_cast<double>(thr) + params.threshold) + adjust;
+    auto labels = fcluster_distance(linkage, cut);
+
+    // Convert from 1-based (fcluster convention) to 0-based
+    for (auto& l : labels) { --l; }
+    return labels;
+}
+
+template std::vector<float> condensed_to_full<float>(const float*, int, float);
+template std::vector<double> condensed_to_full<double>(const double*, int, double);
 template std::vector<float> cosine_similarity<float>(MatrixViewF, bool);
 template std::vector<double> cosine_similarity<double>(MatrixViewD, bool);
 template float ahc_threshold<float>(const float*, int, int);
 template double ahc_threshold<double>(const double*, int, int);
-template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);
-template std::vector<int> ahc_cluster<double>(CondensedMatrixViewD, const AhcParams&);
+template std::vector<int> ahc_cluster<float>(MatrixViewF, const AhcParams&);
+template std::vector<int> ahc_cluster<double>(MatrixViewD, const AhcParams&);
 
 }  // namespace vbx

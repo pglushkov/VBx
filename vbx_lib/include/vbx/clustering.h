@@ -19,6 +19,12 @@ struct AhcParams {
 // Functions
 // ---------------------------------------------------------------------------
 
+// Expand condensed upper-triangle vector (N*(N-1)/2 elements) to a full
+// NxN symmetric matrix in row-major order. Diagonal is filled with diag_val.
+template <typename Scalar>
+std::vector<Scalar> condensed_to_full(const Scalar* condensed, int n,
+                                      Scalar diag_val = Scalar{0});
+
 // Compute cosine similarities between rows of xvecs.
 // If condense_result is true (default), returns N*(N-1)/2 elements in
 // row-major upper triangle order (same layout as scipy.spatial.distance.squareform).
@@ -66,22 +72,26 @@ LinkageResult average_linkage_inplace(double* distmat, int n);
 // Returns N labels (1-based, matching scipy convention).
 std::vector<int> fcluster_distance(const LinkageResult& Z, double t);
 
-// AHC on condensed cosine similarity vector.
+// End-to-end AHC clustering on x-vectors.
+// Computes cosine similarity, estimates threshold via 2-GMM,
+// runs average linkage + fcluster.
 // Returns N cluster labels (0-based).
 template <typename Scalar>
-std::vector<int> ahc_cluster(CondensedMatrixViewT<Scalar> sim,
+std::vector<int> ahc_cluster(MatrixViewT<Scalar> xvecs,
                              const AhcParams& params = {});
 
 // ---------------------------------------------------------------------------
 // Explicit instantiations (defined in clustering.cpp)
 // ---------------------------------------------------------------------------
 
+extern template std::vector<float> condensed_to_full<float>(const float*, int, float);
+extern template std::vector<double> condensed_to_full<double>(const double*, int, double);
 extern template std::vector<float> cosine_similarity<float>(MatrixViewF, bool);
 extern template std::vector<double> cosine_similarity<double>(MatrixViewD, bool);
 extern template float ahc_threshold<float>(const float*, int, int);
 extern template double ahc_threshold<double>(const double*, int, int);
-extern template std::vector<int> ahc_cluster<float>(CondensedMatrixViewF, const AhcParams&);
-extern template std::vector<int> ahc_cluster<double>(CondensedMatrixViewD, const AhcParams&);
+extern template std::vector<int> ahc_cluster<float>(MatrixViewF, const AhcParams&);
+extern template std::vector<int> ahc_cluster<double>(MatrixViewD, const AhcParams&);
 
 }  // namespace vbx
 
