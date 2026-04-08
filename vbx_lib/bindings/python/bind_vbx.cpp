@@ -7,10 +7,12 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 
 #include "vbx/vbx.h"
 #include "vbx/clustering.h"
+#include "vbx/vbhmm.h"
 
 namespace nb = nanobind;
 
@@ -109,6 +111,39 @@ ahc_cluster_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs,
         labels->data(), 1, shape, owner);
 }
 
+// Wrap forward_backward: (lls, tr, ip) -> (posteriors, total_log_lik, log_fw, log_bw)
+// Mirrors the Python reference in VBx/VBx.py::forward_backward — returns a 4-tuple
+// so the test can unpack it the same way as the Python implementation.
+template <typename Scalar>
+nb::object forward_backward_py(
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> lls,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> tr,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> ip) {
+
+    const int T = static_cast<int>(lls.shape(0));
+    const int S = static_cast<int>(lls.shape(1));
+
+    vbx::MatrixViewT<Scalar> lls_view{lls.data(), T, S, S};
+    vbx::MatrixViewT<Scalar> tr_view {tr.data(),  S, S, S};
+
+    auto* result = new vbx::ForwardBackwardResultT<Scalar>(
+        vbx::forward_backward<Scalar>(lls_view, tr_view, ip.data()));
+
+    nb::capsule owner(result, [](void* p) noexcept {
+        delete static_cast<vbx::ForwardBackwardResultT<Scalar>*>(p);
+    });
+
+    size_t shape[2] = {static_cast<size_t>(T), static_cast<size_t>(S)};
+    auto posteriors = nb::ndarray<nb::numpy, Scalar, nb::ndim<2>>(
+        result->posteriors.storage.data(), 2, shape, owner);
+    auto log_fw = nb::ndarray<nb::numpy, Scalar, nb::ndim<2>>(
+        result->log_fw.storage.data(), 2, shape, owner);
+    auto log_bw = nb::ndarray<nb::numpy, Scalar, nb::ndim<2>>(
+        result->log_bw.storage.data(), 2, shape, owner);
+
+    return nb::make_tuple(posteriors, result->total_log_lik, log_fw, log_bw);
+}
+
 NB_MODULE(vbx_native, m) {
     m.def("get_version", &vbx::get_version);
     m.def("cosine_similarity", &cosine_similarity_py<double>,
@@ -127,4 +162,8 @@ NB_MODULE(vbx_native, m) {
           nb::arg("xvecs"), nb::arg("threshold") = -0.015);
     m.def("ahc_cluster", &ahc_cluster_py<float>,
           nb::arg("xvecs"), nb::arg("threshold") = -0.015);
+    m.def("forward_backward", &forward_backward_py<double>,
+          nb::arg("log_likelihoods"), nb::arg("transition"), nb::arg("initial"));
+    m.def("forward_backward", &forward_backward_py<float>,
+          nb::arg("log_likelihoods"), nb::arg("transition"), nb::arg("initial"));
 }

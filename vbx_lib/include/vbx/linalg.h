@@ -22,6 +22,10 @@ extern template void matmul_atb<float>(MatrixViewF, MatrixViewF, MutableMatrixVi
 extern template void matmul_atb<double>(MatrixViewD, MatrixViewD, MutableMatrixViewD);
 extern template void l2_normalize_rows<float>(MutableMatrixViewF);
 extern template void l2_normalize_rows<double>(MutableMatrixViewD);
+extern template float  logsumexp<float>(const float*, int);
+extern template double logsumexp<double>(const double*, int);
+extern template void logsumexp_rows<float>(MatrixViewF, float*);
+extern template void logsumexp_rows<double>(MatrixViewD, double*);
 
 }  // namespace linalg
 }  // namespace vbx

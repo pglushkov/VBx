@@ -43,16 +43,15 @@ using VbhmmResult  = VbhmmResultD;
 template <typename Scalar>
 ForwardBackwardResultT<Scalar> forward_backward(MatrixViewT<Scalar> log_likelihoods,
                                                  MatrixViewT<Scalar> transition,
-                                                 const Scalar* initial,
-                                                 int num_states);
+                                                 const Scalar* initial);
 
 template <typename Scalar>
 VbhmmResultT<Scalar> vbhmm(MatrixViewT<Scalar> log_likelihoods,
                             MatrixViewT<Scalar> gamma_init,
                             const VbhmmParams& params = {});
 
-extern template ForwardBackwardResultF forward_backward<float>(MatrixViewF, MatrixViewF, const float*, int);
-extern template ForwardBackwardResultD forward_backward<double>(MatrixViewD, MatrixViewD, const double*, int);
+extern template ForwardBackwardResultF forward_backward<float>(MatrixViewF, MatrixViewF, const float*);
+extern template ForwardBackwardResultD forward_backward<double>(MatrixViewD, MatrixViewD, const double*);
 extern template VbhmmResultF vbhmm<float>(MatrixViewF, MatrixViewF, const VbhmmParams&);
 extern template VbhmmResultD vbhmm<double>(MatrixViewD, MatrixViewD, const VbhmmParams&);
 
