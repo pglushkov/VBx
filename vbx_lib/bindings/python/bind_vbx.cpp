@@ -111,6 +111,73 @@ ahc_cluster_py(nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs,
         labels->data(), 1, shape, owner);
 }
 
+// Wrap vbhmm: runs the full VBx iteration loop with a PLDA model.
+// PLDA is passed as loose numpy arrays (mean, transform, psi) to avoid
+// plumbing a PldaModelT Python class for now — when diarize() needs a bound
+// PLDA class, this should be refactored.
+// Returns (posteriors, speaker_priors, elbo_history) as a 3-tuple.
+template <typename Scalar>
+nb::object vbhmm_py(
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> xvecs,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> gamma_init,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> plda_mean,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<2>> plda_transform,
+    nb::ndarray<nb::numpy, const Scalar, nb::ndim<1>> plda_psi,
+    double loop_prob,
+    double Fa,
+    double Fb,
+    int max_iters,
+    double epsilon) {
+
+    const int T    = static_cast<int>(xvecs.shape(0));
+    const int Draw = static_cast<int>(xvecs.shape(1));
+    const int S    = static_cast<int>(gamma_init.shape(1));
+    const int D    = static_cast<int>(plda_psi.shape(0));
+
+    // Build PldaModelT from the loose numpy arrays.
+    vbx::PldaModelT<Scalar> plda;
+    plda.lda_dim = D;
+    plda.mean.assign(plda_mean.data(), plda_mean.data() + Draw);
+    plda.diag_ac.assign(plda_psi.data(), plda_psi.data() + D);
+    plda.transform = vbx::MatrixT<Scalar>(D, Draw);
+    std::copy(plda_transform.data(),
+              plda_transform.data() + static_cast<size_t>(D) * Draw,
+              plda.transform.storage.data());
+
+    vbx::VbhmmParams params;
+    params.loop_prob = loop_prob;
+    params.Fa        = Fa;
+    params.Fb        = Fb;
+    params.max_iters = max_iters;
+    params.epsilon   = epsilon;
+
+    vbx::MatrixViewT<Scalar> xvecs_view{xvecs.data(), T, Draw, Draw};
+    vbx::MatrixViewT<Scalar> gamma_view{gamma_init.data(), T, S, S};
+
+    std::optional<vbx::PldaModelT<Scalar>> plda_opt;
+    plda_opt.emplace(std::move(plda));
+
+    auto* result = new vbx::VbhmmResultT<Scalar>(
+        vbx::vbhmm<Scalar>(xvecs_view, gamma_view, params, plda_opt));
+
+    nb::capsule owner(result, [](void* p) noexcept {
+        delete static_cast<vbx::VbhmmResultT<Scalar>*>(p);
+    });
+
+    size_t post_shape[2]  = {static_cast<size_t>(T), static_cast<size_t>(S)};
+    size_t prior_shape[1] = {static_cast<size_t>(S)};
+    size_t elbo_shape[1]  = {result->elbo_history.size()};
+
+    auto posteriors = nb::ndarray<nb::numpy, Scalar, nb::ndim<2>>(
+        result->posteriors.storage.data(), 2, post_shape, owner);
+    auto priors = nb::ndarray<nb::numpy, Scalar, nb::ndim<1>>(
+        result->speaker_priors.data(), 1, prior_shape, owner);
+    auto elbo = nb::ndarray<nb::numpy, Scalar, nb::ndim<1>>(
+        result->elbo_history.data(), 1, elbo_shape, owner);
+
+    return nb::make_tuple(posteriors, priors, elbo);
+}
+
 // Wrap forward_backward: (lls, tr, ip) -> (posteriors, total_log_lik, log_fw, log_bw)
 // Mirrors the Python reference in VBx/VBx.py::forward_backward — returns a 4-tuple
 // so the test can unpack it the same way as the Python implementation.
@@ -166,4 +233,20 @@ NB_MODULE(vbx_native, m) {
           nb::arg("log_likelihoods"), nb::arg("transition"), nb::arg("initial"));
     m.def("forward_backward", &forward_backward_py<float>,
           nb::arg("log_likelihoods"), nb::arg("transition"), nb::arg("initial"));
+    m.def("vbhmm", &vbhmm_py<double>,
+          nb::arg("xvecs"), nb::arg("gamma_init"),
+          nb::arg("plda_mean"), nb::arg("plda_transform"), nb::arg("plda_psi"),
+          nb::arg("loop_prob") = 0.99,
+          nb::arg("Fa")        = 0.3,
+          nb::arg("Fb")        = 17.0,
+          nb::arg("max_iters") = 40,
+          nb::arg("epsilon")   = 1e-6);
+    m.def("vbhmm", &vbhmm_py<float>,
+          nb::arg("xvecs"), nb::arg("gamma_init"),
+          nb::arg("plda_mean"), nb::arg("plda_transform"), nb::arg("plda_psi"),
+          nb::arg("loop_prob") = 0.99,
+          nb::arg("Fa")        = 0.3,
+          nb::arg("Fb")        = 17.0,
+          nb::arg("max_iters") = 40,
+          nb::arg("epsilon")   = 1e-6);
 }

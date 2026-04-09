@@ -1,6 +1,7 @@
 import numpy as np
 
-from VBx.VBx import forward_backward as fb_py
+from VBx.VBx import VBx_plda, forward_backward as fb_py
+from VBx.kaldi_utils import PLDAParams
 import vbx_native
 
 
@@ -90,3 +91,77 @@ def test_forward_backward_float32():
 
     np.testing.assert_allclose(cpp_post, py_post, atol=1e-5)
     np.testing.assert_allclose(cpp_tll, py_tll, rtol=1e-5)
+
+
+# ---------------------------------------------------------------------------
+# vbhmm() — full VBx_plda iteration loop
+# ---------------------------------------------------------------------------
+
+def _make_dummy_plda_inputs(T, D, S, rng):
+    """Build dummy x-vectors + PLDA params with D_raw == lda_dim (no slicing).
+
+    The transform is a random orthogonal matrix so the PLDA projection is
+    well-conditioned. psi is positive (drawn from |N(0,1)| + 0.5).
+    """
+    xvecs = rng.standard_normal((T, D))
+    plda_mean = rng.standard_normal(D) * 0.1
+    q, _ = np.linalg.qr(rng.standard_normal((D, D)))
+    plda_transform = q
+    plda_psi = np.abs(rng.standard_normal(D)) + 0.5
+
+    plda_params = PLDAParams(
+        dim=D,
+        mean=plda_mean,
+        transform=plda_transform,
+        psi=plda_psi,
+    )
+
+    # Initial responsibilities: random row-stochastic (T, S).
+    gamma_init = rng.random((T, S))
+    gamma_init = gamma_init / gamma_init.sum(axis=1, keepdims=True)
+    return xvecs, gamma_init, plda_params
+
+
+def test_vbhmm_plda_vs_python():
+    """C++ vbhmm() must match VBx.VBx.VBx_plda on dummy PLDA inputs."""
+    rng = np.random.default_rng(2024)
+    T, D, S = 40, 8, 3
+    xvecs, gamma_init, plda = _make_dummy_plda_inputs(T, D, S, rng)
+
+    loop_prob = 0.9
+    Fa, Fb = 0.3, 17.0
+    max_iters = 20
+    epsilon = 1e-6
+
+    py_gamma, py_pi, py_Li = VBx_plda(
+        xvecs,
+        plda,
+        loopProb=loop_prob,
+        Fa=Fa,
+        Fb=Fb,
+        pi=S,  # int -> uniform 1/S initial speaker priors
+        gamma=gamma_init,
+        maxIters=max_iters,
+        epsilon=epsilon,
+    )
+    py_elbo = np.array([item[0] for item in py_Li])
+
+    cpp_gamma, cpp_pi, cpp_elbo = vbx_native.vbhmm(
+        xvecs,
+        gamma_init,
+        plda.mean,
+        plda.transform,
+        plda.psi,
+        loop_prob=loop_prob,
+        Fa=Fa,
+        Fb=Fb,
+        max_iters=max_iters,
+        epsilon=epsilon,
+    )
+
+    # Same number of iterations (convergence hits at the same step).
+    assert cpp_elbo.shape == py_elbo.shape
+
+    np.testing.assert_allclose(cpp_elbo, py_elbo, atol=1e-10)
+    np.testing.assert_allclose(cpp_pi, py_pi, atol=1e-10)
+    np.testing.assert_allclose(cpp_gamma, py_gamma, atol=1e-10)
