@@ -6,17 +6,7 @@ from scipy.spatial.distance import squareform
 
 from VBx.diarization_lib import cos_similarity
 from VBx.vbhmm import get_clusters_from_xvectors
-
-
-def _normalize_labels(labels):
-    """Remap labels so first occurrence of each label gets 1, next new label gets 2, etc."""
-    mapping = {}
-    out = []
-    for lab in labels:
-        if lab not in mapping:
-            mapping[lab] = len(mapping) + 1
-        out.append(mapping[lab])
-    return np.array(out)
+from utils import normalize_labels
 
 
 def test_average_linkage_heights():
@@ -81,8 +71,8 @@ def test_fcluster_distance_vs_scipy():
     Z[:, 2] += abs(Z[:, 2].min())
 
     for t in [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 3.0]:
-        labels_scipy = _normalize_labels(fcluster(Z.copy(), t, criterion="distance"))
-        labels_cpp = _normalize_labels(vbx_native.fcluster_distance(Z, t))
+        labels_scipy = normalize_labels(fcluster(Z.copy(), t, criterion="distance"))
+        labels_cpp = normalize_labels(vbx_native.fcluster_distance(Z, t))
         assert np.array_equal(labels_scipy, labels_cpp), (
             f"Partitions differ at threshold {t}: scipy={labels_scipy}, cpp={labels_cpp}"
         )
@@ -107,7 +97,7 @@ def test_fcluster_distance_label_order_differs():
 
     # But normalized labels match — same partition.
     assert np.array_equal(
-        _normalize_labels(labels_scipy), _normalize_labels(labels_cpp)
+        normalize_labels(labels_scipy), normalize_labels(labels_cpp)
     )
 
 
@@ -133,8 +123,8 @@ def test_python_ahc_end_to_end():
     xvecs = rng.standard_normal((N, D))
     distances_to_check = [0.0, 0.5, 2.0, 10.0]
     for dist in distances_to_check:
-        clusters_scipy = _normalize_labels(get_clusters_from_xvectors(xvecs, dist))
-        clusters_cpp = _normalize_labels(
+        clusters_scipy = normalize_labels(get_clusters_from_xvectors(xvecs, dist))
+        clusters_cpp = normalize_labels(
             get_clusters_from_xvectors(xvecs, dist, use_cpp=True)
         )
 
@@ -151,10 +141,10 @@ def test_cpp_ahc_cluster_end_to_end():
 
     for threshold in [-0.015, 0.0, 0.5, 2.0, 10.0]:
         # Python reference
-        labels_py = _normalize_labels(get_clusters_from_xvectors(xvecs, threshold))
+        labels_py = normalize_labels(get_clusters_from_xvectors(xvecs, threshold))
 
         # Pure C++ end-to-end: xvecs -> ahc_cluster
-        labels_cpp = _normalize_labels(
+        labels_cpp = normalize_labels(
             vbx_native.ahc_cluster(xvecs, threshold=threshold)
         )
 
