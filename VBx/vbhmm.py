@@ -71,6 +71,16 @@ class LDAParams:
     lda: np.ndarray
 
 
+def debug_trace_array(arr: np.ndarray, label: str):
+    mean = np.mean(arr)
+    std = np.std(arr)
+    max = np.max(arr)
+    min = np.min(arr)
+    logger.debug(
+        f"  tracing arr {label}: shape={arr.shape}, mean={mean}, std={std}, max={max}, min={min}"
+    )
+
+
 def write_output(fp, file_name, out_labels, starts, ends):
     for label, seg_start, seg_end in zip(out_labels, starts, ends):
         fp.write(
@@ -115,10 +125,10 @@ def vbhmm_diarization_from_clusters(
     plda_params: PLDAParams | None,
     lda_params: LDAParams | None,
     qinit: np.ndarray,
-    loopProb: float,
+    loop_prob: float,
     Fa: float,
     Fb: float,
-    maxIters: int = 40,
+    max_iters: int = 40,
     epsilon: float = 1e-6,
     use_cpp: bool = False,
     output_2nd: bool = False,
@@ -130,6 +140,9 @@ def vbhmm_diarization_from_clusters(
         xvecs = l2_norm(
             lda.T.dot((l2_norm(xvecs - mean1)).transpose()).transpose() - mean2
         )
+
+    debug_trace_array(xvecs, "xvecs")
+    debug_trace_array(qinit, "initial clusters(gamma)")
 
     if use_cpp:
         assert plda_params is not None, (
@@ -143,10 +156,10 @@ def vbhmm_diarization_from_clusters(
             plda_params.mean,
             plda_params.transform,
             plda_params.psi,
-            loop_prob=loopProb,
+            loop_prob=loop_prob,
             Fa=Fa,
             Fb=Fb,
-            max_iters=maxIters,
+            max_iters=max_iters,
             epsilon=epsilon,
         )
     else:
@@ -156,9 +169,9 @@ def vbhmm_diarization_from_clusters(
                 plda_params,
                 pi=qinit.shape[1],
                 gamma=qinit,
-                maxIters=maxIters,
+                maxIters=max_iters,
                 epsilon=epsilon,
-                loopProb=loopProb,
+                loopProb=loop_prob,
                 Fa=Fa,
                 Fb=Fb,
             )
@@ -167,9 +180,9 @@ def vbhmm_diarization_from_clusters(
                 xvecs,
                 pi=qinit.shape[1],
                 gamma=qinit,
-                maxIters=maxIters,
+                maxIters=max_iters,
                 epsilon=epsilon,
-                loopProb=loopProb,
+                loopProb=loop_prob,
                 Fa=Fa,
                 Fb=Fb,
             )
@@ -179,6 +192,11 @@ def vbhmm_diarization_from_clusters(
         labels2nd = np.argsort(-q, axis=1)[:, 1]
     else:
         labels2nd = None
+
+    # logger.debug(f"raw diarization results: q_shape={q.shape}, {q}")
+    # logger.debug(f"assigned clusters: shape={labels1st.shape}, labels1st={labels1st}")
+    debug_trace_array(q, "raw_diar_results(q)")
+    debug_trace_array(labels1st, "assigned clusters(labels1st)")
 
     in_starts, in_ends = xvecs_time_labels
 
@@ -296,10 +314,10 @@ def run_vbhmm(
         plda_params=plda_params,
         lda_params=lda_params,
         qinit=qinit,
-        loopProb=loopP,
+        loop_prob=loopP,
         Fa=Fa,
         Fb=Fb,
-        maxIters=40,
+        max_iters=40,
         epsilon=1e-6,
         use_cpp=use_cpp,
         output_2nd=False,

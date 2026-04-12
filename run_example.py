@@ -43,6 +43,7 @@ def run_diarization(
     ref_rttm_dir: str | Path | None = None,
     use_pcm: bool = False,
     input_samplerate: int = 16000,
+    use_cpp: bool = False,
 ):
     """Run the full diarization pipeline on all wav files in a directory.
 
@@ -142,6 +143,7 @@ def run_diarization(
             Fa=Fa,
             Fb=Fb,
             loopP=loopP,
+            use_cpp=use_cpp,
         )
 
     logger.info(f"Results written to: {out_dir}")
@@ -192,6 +194,13 @@ def main():
         type=int,
         help="Samplerate of audio expected by the model when using raw PCMs",
     )
+    parser.add_argument(
+        "--use-cpp",
+        required=False,
+        default=False,
+        action="store_true",
+        help="set this flag to use C++ lib for running diarization",
+    )
 
     args = parser.parse_args()
 
@@ -217,6 +226,7 @@ def main():
         ref_rttm_dir=args.ref_rttm_dir,
         use_pcm=args.use_pcm,
         input_samplerate=args.in_samplerate,
+        use_cpp=args.use_cpp,
     )
 
 
