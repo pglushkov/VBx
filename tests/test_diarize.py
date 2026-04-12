@@ -125,6 +125,44 @@ def test_diarize_with_plda_vs_python():
     np.testing.assert_allclose(cpp_elbo, py_elbo, atol=1e-10)
 
 
+def test_diarize_end_to_end_vs_python():
+    """End-to-end C++ diarize() vs full Python path on larger synthetic data."""
+    rng = np.random.default_rng(3030)
+    xvecs, seg_starts, seg_ends = _make_inputs(T=200, D=32, num_speakers=5, rng=rng)
+    plda = _make_plda(D=32, rng=rng)
+
+    kw = dict(
+        ahc_threshold=-0.015,
+        loop_prob=0.99,
+        Fa=0.3,
+        Fb=17.0,
+        max_iters=40,
+        epsilon=1e-6,
+        init_smoothing=5.0,
+    )
+
+    py_starts, py_ends, py_spk, py_elbo = _python_reference(
+        xvecs, seg_starts, seg_ends, plda=plda, **kw,
+    )
+
+    cpp_starts, cpp_ends, cpp_spk, _, _, cpp_elbo = vbx_native.diarize(
+        xvecs, seg_starts, seg_ends,
+        plda_mean=plda.mean,
+        plda_transform=plda.transform,
+        plda_psi=plda.psi,
+        run_vbhmm=True,
+        **kw,
+    )
+
+    np.testing.assert_allclose(cpp_starts, py_starts, atol=1e-12)
+    np.testing.assert_allclose(cpp_ends, py_ends, atol=1e-12)
+    np.testing.assert_array_equal(
+        normalize_labels(cpp_spk), normalize_labels(py_spk),
+    )
+    assert cpp_elbo.shape == py_elbo.shape
+    np.testing.assert_allclose(cpp_elbo, py_elbo, atol=1e-10)
+
+
 def test_diarize_plda_mismatch_raises():
     """Passing only some of the PLDA fields must be rejected."""
     rng = np.random.default_rng(2029)
