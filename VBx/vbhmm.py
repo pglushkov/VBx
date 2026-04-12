@@ -137,9 +137,7 @@ def vbhmm_diarization_from_clusters(
         lda = lda_params.lda
         mean1 = lda_params.mean1
         mean2 = lda_params.mean2
-        xvecs = l2_norm(
-            lda.T.dot((l2_norm(xvecs - mean1)).transpose()).transpose() - mean2
-        )
+        xvecs = l2_norm(l2_norm(xvecs - mean1) @ lda - mean2)
 
     debug_trace_array(xvecs, "xvecs")
     debug_trace_array(qinit, "initial clusters(gamma)")
@@ -244,7 +242,7 @@ def deal_with_kaldi_bs(
     data_from_kaldi_file = HumanReadableDataFromKaldi(
         filename=file_name,
         xvec_labels=seg_names,
-        xvecs=np.array(xvecs),
+        xvecs=np.ascontiguousarray(np.array(xvecs)),
         time_labels=(in_starts, in_ends),
     )
 

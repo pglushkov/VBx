@@ -52,10 +52,9 @@ def read_plda_params_from_kaldi_format(
     W = np.linalg.inv(plda_tr.T.dot(plda_tr))
     B = np.linalg.inv((plda_tr.T / plda_psi).dot(plda_tr))
     acvar, wccn = eigh(B, W)
-    plda_psi = acvar[::-1]
-    plda_tr = wccn.T[::-1]
+    plda_psi = np.ascontiguousarray(acvar[::-1][:lda_dim])
+    plda_tr = np.ascontiguousarray(wccn.T[::-1])
 
-    plda_psi = plda_psi[:lda_dim]
     return PLDAParams(dim=lda_dim, mean=plda_mu, transform=plda_tr, psi=plda_psi)
 
 

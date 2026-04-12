@@ -162,6 +162,29 @@ out_dir = run_diarization(
 - **Audio**: `.wav` files, mono, 8kHz or 16kHz sample rate
 - **VAD labels**: `.lab` files (one per wav, same base name) with two columns: `start_time end_time` in seconds
 
+## Note: numpy array memory layout and C++ bindings
+
+The C++ library (`vbx_native`) reads numpy array data via raw pointers, assuming
+rows are packed sequentially in memory (C-contiguous / row-major layout). Numpy
+itself doesn't care about memory layout — it uses stride metadata to locate
+elements regardless of how bytes are arranged. But when C++ reads the raw buffer
+it bypasses strides and assumes `element(row, col) = pointer[row * cols + col]`.
+
+Two places in the codebase produced non-contiguous arrays that broke this:
+
+1. **kaldi_io** returns x-vectors stored column-by-column (Fortran order).
+   Fixed in `deal_with_kaldi_bs()` with `np.ascontiguousarray` right after loading.
+
+2. **`[::-1]` reversal** on PLDA eigenvalues and eigenvectors in
+   `read_plda_params_from_kaldi_format()` — numpy implements this by negating
+   strides instead of copying data. Fixed with `np.ascontiguousarray` at the
+   point of reversal.
+
+The rule: data coming from external sources (Kaldi files, h5py, scipy
+eigendecompositions with reversals) must be made C-contiguous before it enters
+the algorithm code. The fixes live at the data-loading boundary, not in the
+algorithm functions.
+
 ## Third-party dependencies (C++ library)
 
 See `vbx_lib/THIRD_PARTY_NOTICES` for full attribution details.
