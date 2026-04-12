@@ -122,7 +122,7 @@ def VBx(
 
 
 def VBx_plda(
-    x_vecs,
+    x_vecs: np.ndarray,
     plda_params: PLDAParams,
     loopProb=0.9,
     Fa=1.0,

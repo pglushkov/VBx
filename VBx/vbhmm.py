@@ -29,6 +29,8 @@
 import itertools
 import logging
 import os
+from dataclasses import dataclass
+from pathlib import Path
 
 import fastcluster
 import h5py
@@ -45,13 +47,28 @@ from .diarization_lib import (
     read_xvector_timing_dict,
     twoGMMcalib_lin,
 )
-from .kaldi_utils import read_plda_params_from_kaldi_format
+from .kaldi_utils import PLDAParams, read_plda_params_from_kaldi_format
 from .VBx import VBx, VBx_plda
 
 log_level = os.environ.get("LOG_LEVEL", "INFO")
 print(f" === using log-level: {log_level}")
 logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class HumanReadableDataFromKaldi:
+    filename: str
+    xvec_labels: tuple[str]
+    xvecs: np.ndarray
+    time_labels: tuple[np.ndarray, np.ndarray]
+
+
+@dataclass(frozen=True)
+class LDAParams:
+    mean1: np.ndarray
+    mean2: np.ndarray
+    lda: np.ndarray
 
 
 def write_output(fp, file_name, out_labels, starts, ends):
@@ -92,6 +109,130 @@ def get_clusters_from_xvectors(
     return labels1st
 
 
+def vbhmm_diarization_from_clusters(
+    xvecs: np.ndarray,
+    xvecs_time_labels: tuple[np.ndarray, np.ndarray],
+    plda_params: PLDAParams | None,
+    lda_params: LDAParams | None,
+    qinit: np.ndarray,
+    loopProb: float,
+    Fa: float,
+    Fb: float,
+    maxIters: int = 40,
+    epsilon: float = 1e-6,
+    use_cpp: bool = False,
+    output_2nd: bool = False,
+):
+    if lda_params:  # TODO: move it to C++
+        lda = lda_params.lda
+        mean1 = lda_params.mean1
+        mean2 = lda_params.mean2
+        xvecs = l2_norm(
+            lda.T.dot((l2_norm(xvecs - mean1)).transpose()).transpose() - mean2
+        )
+
+    if use_cpp:
+        assert plda_params is not None, (
+            "C++ version currently requires PLDA to be provided"
+        )
+        import vbx_native
+
+        q, sp, elbo = vbx_native.vbhmm(
+            xvecs,
+            qinit,
+            plda_params.mean,
+            plda_params.transform,
+            plda_params.psi,
+            loop_prob=loopProb,
+            Fa=Fa,
+            Fb=Fb,
+            max_iters=maxIters,
+            epsilon=epsilon,
+        )
+    else:
+        if plda_params is not None:
+            q, sp, L = VBx_plda(
+                xvecs,
+                plda_params,
+                pi=qinit.shape[1],
+                gamma=qinit,
+                maxIters=maxIters,
+                epsilon=epsilon,
+                loopProb=loopProb,
+                Fa=Fa,
+                Fb=Fb,
+            )
+        else:
+            q, sp, L = VBx(
+                xvecs,
+                pi=qinit.shape[1],
+                gamma=qinit,
+                maxIters=maxIters,
+                epsilon=epsilon,
+                loopProb=loopProb,
+                Fa=Fa,
+                Fb=Fb,
+            )
+
+    labels1st = np.argsort(-q, axis=1)[:, 0]
+    if q.shape[1] > 1 and output_2nd:
+        labels2nd = np.argsort(-q, axis=1)[:, 1]
+    else:
+        labels2nd = None
+
+    in_starts, in_ends = xvecs_time_labels
+
+    starts, ends, out_labels = merge_adjacent_labels(in_starts, in_ends, labels1st)
+
+    return (starts, ends, out_labels, labels2nd)
+
+
+def deal_with_kaldi_bs(
+    xvec_ark_file: str | Path,
+    segments_file: str | Path,
+    lda_transform: str | Path | None,
+    lda_dim: int,
+    plda_file: str | Path | None,
+) -> tuple[HumanReadableDataFromKaldi, PLDAParams | None, LDAParams | None]:
+    arkit = kaldi_io.read_vec_flt_ark(xvec_ark_file)
+    recit = itertools.groupby(arkit, lambda e: e[0].rsplit("_", 1)[0])
+    segs_dict = read_xvector_timing_dict(segments_file)
+
+    (file_name, segs) = next(recit)
+    logger.info(f"Filename from kaldi file: {file_name}")
+    seg_names, xvecs = zip(*segs)
+    # x =
+
+    if lda_transform:
+        with h5py.File(lda_transform, "r") as f:
+            mean1 = np.array(f["mean1"])
+            mean2 = np.array(f["mean2"])
+            lda = np.array(f["lda"])
+            lda_params = LDAParams(mean1=mean1, mean2=mean2, lda=lda)
+    else:
+        lda_params = None
+
+    if plda_file:
+        plda_params = read_plda_params_from_kaldi_format(
+            plda_file=plda_file, lda_dim=lda_dim
+        )
+    else:
+        plda_params = None
+
+    # this magnificent piece of BS was done inside the file-processing loop
+    assert np.all(segs_dict[file_name][0] == np.array(seg_names))
+    in_starts, in_ends = segs_dict[file_name][1].T
+
+    data_from_kaldi_file = HumanReadableDataFromKaldi(
+        filename=file_name,
+        xvec_labels=seg_names,
+        xvecs=np.array(xvecs),
+        time_labels=(in_starts, in_ends),
+    )
+
+    return (data_from_kaldi_file, plda_params, lda_params)
+
+
 def run_vbhmm(
     xvec_ark_file,
     segments_file,
@@ -128,75 +269,54 @@ def run_vbhmm(
     """
     assert 0 <= loopP <= 1, f"Expecting loopP between 0 and 1, got {loopP} instead."
 
-    segs_dict = read_xvector_timing_dict(segments_file)
+    data_from_kaldi, plda_params, lda_params = deal_with_kaldi_bs(
+        xvec_ark_file,
+        segments_file,
+        xvec_transform,
+        lda_dim,
+        plda_file,
+    )
 
-    arkit = kaldi_io.read_vec_flt_ark(xvec_ark_file)
-    recit = itertools.groupby(arkit, lambda e: e[0].rsplit("_", 1)[0])
-    for file_name, segs in recit:
-        print(file_name)
-        seg_names, xvecs = zip(*segs)
-        x = np.array(xvecs)
+    xvecs = data_from_kaldi.xvecs
+    file_name = data_from_kaldi.filename
+    segment_starts = data_from_kaldi.time_labels[0]
+    segment_ends = data_from_kaldi.time_labels[1]
 
-        if xvec_transform:
-            with h5py.File(xvec_transform, "r") as f:
-                mean1 = np.array(f["mean1"])
-                mean2 = np.array(f["mean2"])
-                lda = np.array(f["lda"])
-                x = l2_norm(
-                    lda.T.dot((l2_norm(x - mean1)).transpose()).transpose() - mean2
-                )
+    # get initial clusters structure
+    labels1st = get_clusters_from_xvectors(xvecs, threshold, use_cpp=use_cpp)
 
-        # get initial clusters structure
-        labels1st = get_clusters_from_xvectors(x, threshold, use_cpp=use_cpp)
-        qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
-        qinit[range(len(labels1st)), labels1st] = 1.0
-        qinit = softmax(qinit * init_smoothing, axis=1)
+    # form initial class labels from clusterization results
+    qinit = np.zeros((len(labels1st), np.max(labels1st) + 1))
+    qinit[range(len(labels1st)), labels1st] = 1.0
+    qinit = softmax(qinit * init_smoothing, axis=1)
 
-        if plda_file:
-            plda_params = read_plda_params_from_kaldi_format(
-                plda_file=plda_file, lda_dim=lda_dim
-            )
-            q, sp, L = VBx_plda(
-                x,
-                plda_params,
-                pi=qinit.shape[1],
-                gamma=qinit,
-                maxIters=40,
-                epsilon=1e-6,
-                loopProb=loopP,
-                Fa=Fa,
-                Fb=Fb,
-            )
-        else:
-            q, sp, L = VBx(
-                x,
-                pi=qinit.shape[1],
-                gamma=qinit,
-                maxIters=40,
-                epsilon=1e-6,
-                loopProb=loopP,
-                Fa=Fa,
-                Fb=Fb,
-            )
+    merged_starts, merged_ends, out_labels, labels2nd = vbhmm_diarization_from_clusters(
+        xvecs=xvecs,
+        xvecs_time_labels=data_from_kaldi.time_labels,
+        plda_params=plda_params,
+        lda_params=lda_params,
+        qinit=qinit,
+        loopProb=loopP,
+        Fa=Fa,
+        Fb=Fb,
+        maxIters=40,
+        epsilon=1e-6,
+        use_cpp=use_cpp,
+        output_2nd=False,
+    )
 
-        labels1st = np.argsort(-q, axis=1)[:, 0]
-        if q.shape[1] > 1:
-            labels2nd = np.argsort(-q, axis=1)[:, 1]
+    os.makedirs(out_rttm_dir, exist_ok=True)
+    with open(os.path.join(out_rttm_dir, f"{file_name}.rttm"), "w") as fp:
+        write_output(fp, file_name, out_labels, merged_starts, merged_ends)
 
-        assert np.all(segs_dict[file_name][0] == np.array(seg_names))
-        start, end = segs_dict[file_name][1].T
-
-        starts, ends, out_labels = merge_adjacent_labels(start, end, labels1st)
-        os.makedirs(out_rttm_dir, exist_ok=True)
-        with open(os.path.join(out_rttm_dir, f"{file_name}.rttm"), "w") as fp:
-            write_output(fp, file_name, out_labels, starts, ends)
-
-        if output_2nd and init.endswith("VB") and q.shape[1] > 1:
-            starts, ends, out_labels2 = merge_adjacent_labels(start, end, labels2nd)
-            output_rttm_dir = f"{out_rttm_dir}2nd"
-            os.makedirs(output_rttm_dir, exist_ok=True)
-            with open(os.path.join(output_rttm_dir, f"{file_name}.rttm"), "w") as fp:
-                write_output(fp, file_name, out_labels2, starts, ends)
+    if output_2nd:
+        merged_starts, merged_ends, out_labels2 = merge_adjacent_labels(
+            segment_starts, segment_ends, labels2nd
+        )
+        output_rttm_dir = f"{out_rttm_dir}2nd"
+        os.makedirs(output_rttm_dir, exist_ok=True)
+        with open(os.path.join(output_rttm_dir, f"{file_name}.rttm"), "w") as fp:
+            write_output(fp, file_name, out_labels2, merged_starts, merged_ends)
 
 
 if __name__ == "__main__":
