@@ -77,7 +77,7 @@ DiarResultT<Scalar> diarize(MatrixViewT<Scalar> xvecs,
     // Stage 1 — AHC clustering: initial per-frame labels + qinit seed.
     // -----------------------------------------------------------------------
     const std::vector<int> ahc_labels = ahc_cluster<Scalar>(xvecs, params.ahc);
-    const int N = static_cast<int>(ahc_labels.size());
+    const int n_steps = static_cast<int>(ahc_labels.size());
     const int num_speakers =
         *std::max_element(ahc_labels.begin(), ahc_labels.end()) + 1;
 
@@ -91,8 +91,8 @@ DiarResultT<Scalar> diarize(MatrixViewT<Scalar> xvecs,
     const Scalar p_on      = exp_s / denom;
     const Scalar p_off     = Scalar{1} / denom;
 
-    MatrixT<Scalar> qinit(N, num_speakers, p_off);
-    for (int i = 0; i < N; ++i) {
+    MatrixT<Scalar> qinit(n_steps, num_speakers, p_off);
+    for (int i = 0; i < n_steps; ++i) {
         qinit(i, ahc_labels[i]) = p_on;
     }
 
@@ -112,8 +112,8 @@ DiarResultT<Scalar> diarize(MatrixViewT<Scalar> xvecs,
         // Final labels = argmax over the per-frame speaker posteriors. Ties
         // break to the lowest index, matching numpy.argsort(-q, axis=1)[:, 0].
         const int K = vb.posteriors.cols;
-        final_labels.resize(N);
-        for (int t = 0; t < N; ++t) {
+        final_labels.resize(n_steps);
+        for (int t = 0; t < n_steps; ++t) {
             const Scalar* row = &vb.posteriors.storage[t * K];
             int    best     = 0;
             Scalar best_val = row[0];

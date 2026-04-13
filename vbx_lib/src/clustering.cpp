@@ -213,23 +213,23 @@ std::vector<int> fcluster_distance(const LinkageResult& Z, double t) {
 template <typename Scalar>
 std::vector<int> ahc_cluster(MatrixViewT<Scalar> xvecs,
                              const AhcParams& params) {
-    const int n = xvecs.rows;
+    const int n_steps = xvecs.rows;
 
     // Compute condensed cosine similarity
     auto sim = cosine_similarity(xvecs, /*condense_result=*/true);
 
     // Expand to full NxN for threshold estimation (preserves statistical distribution)
-    auto full = condensed_to_full(sim.data(), n, Scalar{1});
-    Scalar thr = ahc_threshold(full.data(), n * n);
+    auto full = condensed_to_full(sim.data(), n_steps, Scalar{1});
+    Scalar thr = ahc_threshold(full.data(), n_steps * n_steps);
 
     // Build condensed distance matrix: negate similarities
-    std::vector<double> dist(condensed_size(n));
-    for (int i = 0; i < condensed_size(n); ++i) {
+    std::vector<double> dist(condensed_size(n_steps));
+    for (int i = 0; i < condensed_size(n_steps); ++i) {
         dist[i] = static_cast<double>(-sim[i]);
     }
 
     // Average linkage
-    LinkageResult linkage = average_linkage_inplace(dist.data(), n);
+    LinkageResult linkage = average_linkage_inplace(dist.data(), n_steps);
 
     // Shift heights so minimum is 0 (matching Python: adjust = abs(min))
     double min_height = std::numeric_limits<double>::infinity();

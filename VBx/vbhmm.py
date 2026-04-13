@@ -229,9 +229,20 @@ def deal_with_kaldi_bs(
         lda_params = None
 
     if plda_file:
-        plda_params = read_plda_params_from_kaldi_format(
-            plda_file=plda_file, lda_dim=lda_dim
-        )
+        if os.path.isfile(plda_file):
+            # assume its kaldi plda-file
+            plda_params = read_plda_params_from_kaldi_format(
+                plda_file=plda_file, lda_dim=lda_dim
+            )
+        elif os.path.isdir(plda_file):
+            # assume its directory with plda params saved separately
+            mean = np.load(os.path.join(plda_file, "mean.npy")).squeeze()
+            transform = np.load(os.path.join(plda_file, "transform.npy"))
+            psi = np.load(os.path.join(plda_file, "psi.npy")).squeeze()
+            plda_dim = psi.shape[0]
+            plda_params = PLDAParams(
+                dim=plda_dim, mean=mean, transform=transform, psi=psi
+            )
     else:
         plda_params = None
 
