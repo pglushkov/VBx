@@ -7,10 +7,12 @@ Replaces run_example.sh — runs x-vector extraction followed by VB-HMM clusteri
 import argparse
 import logging
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
 from VBx.predict import extract_xvectors_melbank, extract_xvectors_pcm, load_model
+from VBx.vad import extract_vad_labs_into_temp_dir
 from VBx.vbhmm import run_vbhmm
 
 log_level = os.environ.get("LOG_LEVEL", "INFO")
@@ -28,7 +30,7 @@ _PCM_HOP_LEN_SEC = 0.24  # 240 msec from original model
 
 def run_diarization(
     wav_dir: str | Path,
-    lab_dir: str | Path,
+    lab_dir: str | Path | None,
     out_dir: str | Path | None = None,
     weights: str | Path = _DEFAULT_WEIGHTS,
     backend: str = "onnx",
@@ -72,6 +74,14 @@ def run_diarization(
             "Scoring is not yet supported in the Python pipeline. "
             "Use dscore/score.py directly if needed."
         )
+
+    cleanup_lab_dir = False
+    if lab_dir is None:
+        logger.info(
+            "== No lab_dir provided, will extract VAD labels from available .wav files"
+        )
+        lab_dir = extract_vad_labs_into_temp_dir(wav_dir)
+        cleanup_lab_dir = True
 
     if out_dir is None:
         out_dir = tempfile.mkdtemp(prefix="vbx_")
@@ -146,6 +156,10 @@ def run_diarization(
             use_cpp=use_cpp,
         )
 
+    if cleanup_lab_dir:
+        logger.info(f"Cleaning up auto-generated VAD lab dir: {lab_dir}")
+        shutil.rmtree(lab_dir, ignore_errors=True)
+
     logger.info(f"Results written to: {out_dir}")
     return out_dir
 
@@ -156,7 +170,7 @@ def main():
         "--wav-dir", required=True, help="Directory with input wav files"
     )
     parser.add_argument(
-        "--lab-dir", required=True, help="Directory with VAD label files"
+        "--lab-dir", required=False, help="Directory with VAD label files"
     )
     parser.add_argument(
         "--out-dir", default=None, help="Output directory (default: temp dir)"

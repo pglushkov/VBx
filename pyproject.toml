@@ -22,7 +22,9 @@ dependencies = [
     'kaldi_io',
     'torch',
     'tabulate',
-    'intervaltree'
+    'intervaltree',
+    'silero_vad',
+    'torchcodec<=0.10',
 ]
 
 [dependency-groups]
